@@ -2,50 +2,158 @@ import CategoryPill from "@/components/CategoryPill";
 import RestaurantCard from "@/components/RestaurantCard";
 import colors from "@/constants/colors";
 import typography from "@/constants/typography";
-// Remove the import since we're defining them in this file
 import * as Location from "expo-location";
 import { useRouter } from "expo-router";
-import { ChevronDown, MapPin, Search, X, Check } from "lucide-react-native";
+import { ChevronDown, MapPin, Search, X } from "lucide-react-native";
 import { FontAwesome5 } from "@expo/vector-icons";
 import * as React from "react";
 import { useState, useEffect, useCallback } from "react";
-import { Modal, Switch } from "react-native";
-import {
-  Platform,
-  SafeAreaView,
-  ScrollView,
-  StyleSheet,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  View,
-} from "react-native";
+import { Modal, Switch, Platform, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
+// Custom slider implementation
+import { PanResponder } from 'react-native';
 
-// Define the OpeningHours interface for restaurant operating hours
-type DayOfWeek = 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday';
+interface SliderProps {
+  value: number;
+  minimumValue: number;
+  maximumValue: number;
+  step: number;
+  onValueChange: (value: number) => void;
+  minimumTrackTintColor?: string;
+  maximumTrackTintColor?: string;
+  thumbTintColor?: string;
+  style?: any;
+  disabled?: boolean;
+  accessibilityLabel?: string;
+}
 
-type OpeningHours = Record<string, { open: string; close: string }>;
+const CustomSlider: React.FC<SliderProps> = ({
+  value,
+  minimumValue = 0,
+  maximumValue = 1,
+  step = 0.1,
+  onValueChange,
+  minimumTrackTintColor = '#0000FF',
+  maximumTrackTintColor = '#00000022',
+  thumbTintColor = '#0000FF',
+  style,
+  disabled = false,
+  accessibilityLabel,
+}) => {
+  const sliderWidth = 200; // Default width
+  const thumbSize = 20;
+  
+  const getSliderPosition = (v: number) => {
+    const range = maximumValue - minimumValue;
+    const position = ((v - minimumValue) / range) * sliderWidth;
+    return Math.max(0, Math.min(position, sliderWidth));
+  };
+  
+  const panResponder = PanResponder.create({
+    onStartShouldSetPanResponder: () => !disabled,
+    onMoveShouldSetPanResponder: () => !disabled,
+    onPanResponderMove: (_, gestureState) => {
+      if (disabled) return;
+      
+      const { dx } = gestureState;
+      const range = maximumValue - minimumValue;
+      const steps = range / step;
+      const stepInPixels = sliderWidth / steps;
+      const newValue = value + (dx / stepInPixels) * step;
+      
+      const clampedValue = Math.max(minimumValue, Math.min(maximumValue, newValue));
+      const steppedValue = Math.round(clampedValue / step) * step;
+      
+      onValueChange(steppedValue);
+    },
+  });
+  
+  const trackPosition = getSliderPosition(value);
+  
+  return (
+    <View style={[styles.sliderContainer, style]}>
+      <View style={[styles.track, { backgroundColor: maximumTrackTintColor }]}>
+        <View 
+          style={[
+            styles.trackActive, 
+            { 
+              width: trackPosition,
+              backgroundColor: minimumTrackTintColor,
+            },
+          ]} 
+        />
+      </View>
+      <View 
+        style={[
+          styles.thumb,
+          { 
+            left: trackPosition - thumbSize / 2,
+            backgroundColor: thumbTintColor,
+            opacity: disabled ? 0.5 : 1,
+          },
+        ]}
+        {...panResponder.panHandlers}
+        accessible={true}
+        accessibilityRole="adjustable"
+        accessibilityLabel={accessibilityLabel}
+        accessibilityValue={{
+          min: minimumValue,
+          max: maximumValue,
+          now: value,
+        }}
+      />
+    </View>
+  );
+};
 
+const Slider = CustomSlider;
+import axios from "axios";
+
+// Define the OpeningHours type to be more flexible
+type OpeningHours = {
+  [key: string]: {
+    open: string;
+    close: string;
+  };
+};
+
+// Parse openHours string (e.g., "9:00 AM - 9:00 PM") into OpeningHours object
+const parseOpeningHours = (openHours: string): OpeningHours => {
+  const [open, close] = openHours.split(" - ").map(time => time.trim());
+  return {
+    default: { open, close },
+  };
+};
+
+// Define the Restaurant interface based on backend schema
 interface Restaurant {
-  id: string;
+  _id: string;
   name: string;
-  image: string;
-  imageUrl: string;
-  rating: number;
-  deliveryTime: string;
-  minOrder: string;
-  categories: string[];
-  cuisine: string;
-  priceLevel: string; // Changed to only accept string
-  isOpen: boolean;
-  distance: string;
-  address: string;
-  ownerId: string;
+  slug: string;
+  location: {
+    type: string;
+    coordinates: [number, number]; // [longitude, latitude]
+    address: string;
+  };
+  // For display purposes in the card
+  latitude?: number;
+  longitude?: number;
+  description: string;
+  deliveryRadiusMeters: number;
+  license: string;
+  managerId: string;
+  cuisineTypes: string[];
+  imageCover: string;
+  ratingAverage: number;
+  ratingQuantity: number;
+  openHours: string;
+  isDeliveryAvailable: boolean;
+  isOpenNow: boolean;
+  active: boolean;
   createdAt: string;
   updatedAt: string;
-  estimatedDeliveryTime?: string;
-  dietaryOptions?: string[];
-  openingHours?: OpeningHours;
+  reviews?: any[];
+  shortDescription?: string;
+  reviewCount?: number;
 }
 
 type PriceRange = 'Under 100 ETB' | '100-300 ETB' | '300-500 ETB' | '500+ ETB';
@@ -57,373 +165,45 @@ const priceRanges = [
   { label: '500+ ETB', value: '500+ ETB' as const },
 ];
 
-// Mock data for restaurants
-const mockRestaurants: Restaurant[] = [
-  // Ethiopian Cuisine
-  {
-    id: '1',
-    name: 'Habesha Restaurant',
-    image: 'https://images.unsplash.com/photo-1590845947676-fa2576f401d2?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80',
-    imageUrl: 'https://images.unsplash.com/photo-1590845947676-fa2576f401d2?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80',
-    rating: 4.5,
-    deliveryTime: '30-45 min',
-    minOrder: '100 ETB',
-    categories: ['Ethiopian', 'Traditional'],
-    cuisine: 'Ethiopian',
-    priceLevel: '150-300 ETB',
-    isOpen: true,
-    distance: '1.2 km',
-    address: '123 Bole Road, Addis Ababa',
-    ownerId: 'owner123',
-    createdAt: '2023-01-01T00:00:00Z',
-    updatedAt: '2023-01-01T00:00:00Z',
-    estimatedDeliveryTime: '45',
-    dietaryOptions: ['Vegetarian', 'Vegan', 'Gluten-Free', 'Halal'],
-    openingHours: {
-      'Monday': { open: '09:00', close: '22:00' },
-      'Tuesday': { open: '09:00', close: '22:00' },
-      'Wednesday': { open: '09:00', close: '22:00' },
-      'Thursday': { open: '09:00', close: '22:00' },
-      'Friday': { open: '09:00', close: '23:00' },
-      'Saturday': { open: '09:00', close: '23:00' },
-      'Sunday': { open: '09:00', close: '22:00' }
-    }
-  },
-  {
-    id: '2',
-    name: 'Tibs Village',
-    image: 'https://images.unsplash.com/photo-1645112411351-3ec33976b9a5?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80',
-    imageUrl: 'https://images.unsplash.com/photo-1645112411351-3ec33976b9a5?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80',
-    rating: 4.2,
-    deliveryTime: '20-30 min',
-    minOrder: '50 ETB',
-    categories: ['Ethiopian', 'Grill'],
-    cuisine: 'Ethiopian',
-    priceLevel: '100-250 ETB',
-    isOpen: true,
-    distance: '0.8 km',
-    address: '456 Bole Road, Addis Ababa',
-    ownerId: 'owner456',
-    createdAt: '2023-01-15T00:00:00Z',
-    updatedAt: '2023-01-15T00:00:00Z',
-    estimatedDeliveryTime: '30',
-    dietaryOptions: ['Meat Lovers', 'Spicy', 'Halal'],
-    openingHours: {
-      'Monday': { open: '10:00', close: '23:00' },
-      'Tuesday': { open: '10:00', close: '23:00' },
-      'Wednesday': { open: '10:00', close: '23:00' },
-      'Thursday': { open: '10:00', close: '23:00' },
-      'Friday': { open: '10:00', close: '00:00' },
-      'Saturday': { open: '10:00', close: '00:00' },
-      'Sunday': { open: '10:00', close: '23:00' }
-    }
-  },
-  {
-    id: '3',
-    name: 'Injera Time',
-    image: 'https://images.unsplash.com/photo-1601050690597-df0568f70950?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80',
-    imageUrl: 'https://images.unsplash.com/photo-1601050690597-df0568f70950?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80',
-    rating: 4.0,
-    deliveryTime: '25-40 min',
-    minOrder: '75 ETB',
-    categories: ['Ethiopian', 'Vegetarian'],
-    cuisine: 'Ethiopian',
-    priceLevel: '80-200 ETB',
-    isOpen: true,
-    distance: '1.5 km',
-    address: '789 Bole Road, Addis Ababa',
-    ownerId: 'owner789',
-    createdAt: '2023-02-01T00:00:00Z',
-    updatedAt: '2023-02-01T00:00:00Z',
-    estimatedDeliveryTime: '40',
-    dietaryOptions: ['Vegetarian', 'Vegan', 'Gluten-Free'],
-    openingHours: {
-      'Monday': { open: '08:00', close: '21:00' },
-      'Tuesday': { open: '08:00', close: '21:00' },
-      'Wednesday': { open: '08:00', close: '21:00' },
-      'Thursday': { open: '08:00', close: '21:00' },
-      'Friday': { open: '08:00', close: '22:00' },
-      'Saturday': { open: '08:00', close: '22:00' },
-      'Sunday': { open: '08:00', close: '21:00' }
-    }
-  },
-  
-  // Italian Cuisine
-  {
-    id: '4',
-    name: 'Bella Italia',
-    image: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80',
-    imageUrl: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80',
-    rating: 4.6,
-    deliveryTime: '35-50 min',
-    minOrder: '150 ETB',
-    categories: ['Italian', 'Pasta', 'Pizza'],
-    cuisine: 'Italian',
-    priceLevel: '200-500 ETB',
-    isOpen: true,
-    distance: '2.1 km',
-    address: '101 Bishoftu Road, Addis Ababa',
-    ownerId: 'owner101',
-    createdAt: '2023-02-10T00:00:00Z',
-    updatedAt: '2023-02-10T00:00:00Z',
-    estimatedDeliveryTime: '45',
-    dietaryOptions: ['Vegetarian', 'Gluten-Free', 'Dairy-Free'],
-    openingHours: {
-      'Monday': { open: '11:00', close: '23:00' },
-      'Tuesday': { open: '11:00', close: '23:00' },
-      'Wednesday': { open: '11:00', close: '23:00' },
-      'Thursday': { open: '11:00', close: '23:00' },
-      'Friday': { open: '11:00', close: '00:00' },
-      'Saturday': { open: '11:00', close: '00:00' },
-      'Sunday': { open: '11:00', close: '23:00' }
-    }
-  },
-  {
-    id: '5',
-    name: 'Pizza Palace',
-    image: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80',
-    imageUrl: 'https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80',
-    rating: 4.3,
-    deliveryTime: '30-45 min',
-    minOrder: '120 ETB',
-    categories: ['Italian', 'Pasta'],
-    cuisine: 'Italian',
-    priceLevel: '150-400 ETB',
-    isOpen: true,
-    distance: '1.8 km',
-    address: '202 Kazanchis, Addis Ababa',
-    ownerId: 'owner202',
-    createdAt: '2023-02-15T00:00:00Z',
-    updatedAt: '2023-02-15T00:00:00Z',
-    estimatedDeliveryTime: '40',
-    dietaryOptions: ['Vegetarian', 'Vegan Options'],
-    openingHours: {
-      'Monday': { open: '10:30', close: '22:30' },
-      'Tuesday': { open: '10:30', close: '22:30' },
-      'Wednesday': { open: '10:30', close: '22:30' },
-      'Thursday': { open: '10:30', close: '22:30' },
-      'Friday': { open: '10:30', close: '23:30' },
-      'Saturday': { open: '10:30', close: '23:30' },
-      'Sunday': { open: '10:30', close: '22:30' }
-    }
-  },
-  
-  // Chinese Cuisine
-  {
-    id: '6',
-    name: 'Dragon Garden',
-    image: 'https://example.com/dragon-garden.jpg',
-    imageUrl: 'https://example.com/dragon-garden.jpg',
-    rating: 4.4,
-    deliveryTime: '25-40 min',
-    minOrder: '100 ETB',
-    categories: ['Chinese', 'Asian'],
-    cuisine: 'Chinese',
-    priceLevel: '150-350 ETB',
-    isOpen: true,
-    distance: '2.5 km',
-    address: '303 Bole Road, Addis Ababa',
-    ownerId: 'owner303',
-    createdAt: '2023-01-20T00:00:00Z',
-    updatedAt: '2023-01-20T00:00:00Z',
-    estimatedDeliveryTime: '35',
-    dietaryOptions: ['Vegetarian', 'Vegan', 'Gluten-Free'],
-    openingHours: {
-      'Monday': { open: '10:00', close: '22:00' },
-      'Tuesday': { open: '10:00', close: '22:00' },
-      'Wednesday': { open: '10:00', close: '22:00' },
-      'Thursday': { open: '10:00', close: '22:00' },
-      'Friday': { open: '10:00', close: '23:00' },
-      'Saturday': { open: '10:00', close: '23:00' },
-      'Sunday': { open: '10:00', close: '22:00' }
-    }
-  },
-  
-  // Indian Cuisine
-  {
-    id: '7',
-    name: 'Taj Mahal',
-    image: 'https://example.com/taj-mahal.jpg',
-    imageUrl: 'https://example.com/taj-mahal.jpg',
-    rating: 4.7,
-    deliveryTime: '30-45 min',
-    minOrder: '120 ETB',
-    categories: ['Indian', 'Asian'],
-    cuisine: 'Indian',
-    priceLevel: '150-400 ETB',
-    isOpen: true,
-    distance: '1.7 km',
-    address: '404 Bole Road, Addis Ababa',
-    ownerId: 'owner404',
-    createdAt: '2023-01-25T00:00:00Z',
-    updatedAt: '2023-01-25T00:00:00Z',
-    estimatedDeliveryTime: '40',
-    dietaryOptions: ['Vegetarian', 'Vegan', 'Gluten-Free', 'Halal'],
-    openingHours: {
-      'Monday': { open: '10:00', close: '22:30' },
-      'Tuesday': { open: '10:00', close: '22:30' },
-      'Wednesday': { open: '10:00', close: '22:30' },
-      'Thursday': { open: '10:00', close: '22:30' },
-      'Friday': { open: '10:00', close: '23:30' },
-      'Saturday': { open: '10:00', close: '23:30' },
-      'Sunday': { open: '10:00', close: '22:30' }
-    }
-  },
-  
-  // Japanese Cuisine
-  {
-    id: '8',
-    name: 'Sakura Sushi',
-    image: 'https://images.unsplash.com/photo-1579871494447-9811cf80d66c?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80',
-    imageUrl: 'https://images.unsplash.com/photo-1579871494447-9811cf80d66c?ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D&auto=format&fit=crop&w=1000&q=80',
-    rating: 4.8,
-    deliveryTime: '35-50 min',
-    minOrder: '200 ETB',
-    categories: ['Japanese', 'Sushi', 'Asian'],
-    cuisine: 'Japanese',
-    priceLevel: '300-800 ETB',
-    isOpen: true,
-    distance: '3.0 km',
-    address: '505 Bole Road, Addis Ababa',
-    ownerId: 'owner505',
-    createdAt: '2023-02-05T00:00:00Z',
-    updatedAt: '2023-02-05T00:00:00Z',
-    estimatedDeliveryTime: '45',
-    dietaryOptions: ['Pescatarian', 'Gluten-Free'],
-    openingHours: {
-      'Monday': { open: '11:30', close: '22:00' },
-      'Tuesday': { open: '11:30', close: '22:00' },
-      'Wednesday': { open: '11:30', close: '22:00' },
-      'Thursday': { open: '11:30', close: '22:00' },
-      'Friday': { open: '11:30', close: '23:00' },
-      'Saturday': { open: '11:30', close: '23:00' },
-      'Sunday': { open: '11:30', close: '22:00' }
-    }
-  },
-  
-  // Mexican Cuisine
-  {
-    id: '9',
-    name: 'Fiesta Mexicana',
-    image: 'https://example.com/fiesta-mexicana.jpg',
-    imageUrl: 'https://example.com/fiesta-mexicana.jpg',
-    rating: 4.5,
-    deliveryTime: '25-40 min',
-    minOrder: '130 ETB',
-    categories: ['Mexican', 'Latin'],
-    cuisine: 'Mexican',
-    priceLevel: '150-400 ETB',
-    isOpen: true,
-    distance: '2.2 km',
-    address: '606 Bole Road, Addis Ababa',
-    ownerId: 'owner606',
-    createdAt: '2023-02-08T00:00:00Z',
-    updatedAt: '2023-02-08T00:00:00Z',
-    estimatedDeliveryTime: '35',
-    dietaryOptions: ['Vegetarian', 'Vegan', 'Gluten-Free'],
-    openingHours: {
-      'Monday': { open: '11:00', close: '22:00' },
-      'Tuesday': { open: '11:00', close: '22:00' },
-      'Wednesday': { open: '11:00', close: '22:00' },
-      'Thursday': { open: '11:00', close: '22:00' },
-      'Friday': { open: '11:00', close: '23:00' },
-      'Saturday': { open: '11:00', close: '23:00' },
-      'Sunday': { open: '11:00', close: '22:00' }
-    }
-  },
-  
-  // Middle Eastern Cuisine
-  {
-    id: '10',
-    name: 'Aladdin Shawarma',
-    image: 'https://example.com/aladdin-shawarma.jpg',
-    imageUrl: 'https://example.com/aladdin-shawarma.jpg',
-    rating: 4.3,
-    deliveryTime: '20-35 min',
-    minOrder: '80 ETB',
-    categories: ['Middle Eastern', 'Halal', 'Fast Food'],
-    cuisine: 'Middle Eastern',
-    priceLevel: '80-250 ETB',
-    isOpen: true,
-    distance: '1.3 km',
-    address: '707 Bole Road, Addis Ababa',
-    ownerId: 'owner707',
-    createdAt: '2023-02-12T00:00:00Z',
-    updatedAt: '2023-02-12T00:00:00Z',
-    estimatedDeliveryTime: '30',
-    dietaryOptions: ['Halal', 'Vegetarian'],
-    openingHours: {
-      'Monday': { open: '09:00', close: '23:00' },
-      'Tuesday': { open: '09:00', close: '23:00' },
-      'Wednesday': { open: '09:00', close: '23:00' },
-      'Thursday': { open: '09:00', close: '23:00' },
-      'Friday': { open: '09:00', close: '00:00' },
-      'Saturday': { open: '09:00', close: '00:00' },
-      'Sunday': { open: '09:00', close: '23:00' }
-    }
-  }
-];
-
 const restaurantCategories = [
   'All',
   'Ethiopian',
   'Italian',
   'Chinese',
   'Indian',
-  'Japanese',
-  'Mexican',
-  'Middle Eastern',
-  'Vegetarian',
-  'Vegan',
   'Fast Food',
-  'Pizza',
-  'Pasta',
-  'Sushi',
-  'Halal'
+  'Vegan',
+  'Other'
 ];
 
 export default function RestaurantsScreen() {
   const router = useRouter();
-  const [restaurants, setRestaurants] = useState<Restaurant[]>(mockRestaurants);
-  const [filteredRestaurants, setFilteredRestaurants] = useState<Restaurant[]>(mockRestaurants);
+  const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
+  const [filteredRestaurants, setFilteredRestaurants] = useState<Restaurant[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string>('All');
-  
-  const parseDeliveryTime = (timeStr: string | number | undefined): number => {
-    if (!timeStr) return 0;
-    const str = String(timeStr);
-    const matches = str.match(/(\d+)/g);
-    if (!matches || matches.length === 0) return 0;
-    const nums = matches.map(Number);
-    return Math.round(nums.reduce((a, b) => a + b, 0) / nums.length);
-  };
-
-  // Using the restaurantCategories defined outside the component
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
   const [address, setAddress] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [locationPermission, setLocationPermission] = useState<boolean | null>(null);
   const [showFilterModal, setShowFilterModal] = useState(false);
-  type CuisineType = {
-    id: string;
-    name: string;
-    selected: boolean;
-  };
 
-  const initialCuisines: CuisineType[] = [
-    { id: 'ethiopian', name: 'Ethiopian', selected: false },
-    { id: 'italian', name: 'Italian', selected: false },
-    { id: 'chinese', name: 'Chinese', selected: false },
-    { id: 'indian', name: 'Indian', selected: false },
-    { id: 'mexican', name: 'Mexican', selected: false },
-  ];
-
-  // Define the Filters type
   type Cuisine = {
     id: string;
     name: string;
     selected: boolean;
   };
+
+  const initialCuisines: Cuisine[] = [
+    { id: 'ethiopian', name: 'Ethiopian', selected: false },
+    { id: 'italian', name: 'Italian', selected: false },
+    { id: 'chinese', name: 'Chinese', selected: false },
+    { id: 'indian', name: 'Indian', selected: false },
+    { id: 'fast-food', name: 'Fast Food', selected: false },
+    { id: 'vegan', name: 'Vegan', selected: false },
+    { id: 'other', name: 'Other', selected: false },
+  ];
 
   type Filters = {
     priceRange: [number, number];
@@ -431,7 +211,7 @@ export default function RestaurantsScreen() {
     dietaryOptions: string[];
     minRating: number;
     openNow: boolean;
-    deliveryTime: number | null;
+    deliveryTime: number;
   };
 
   const [filters, setFilters] = useState<Filters>({
@@ -440,13 +220,185 @@ export default function RestaurantsScreen() {
     dietaryOptions: [],
     minRating: 0,
     openNow: false,
-    deliveryTime: 60, // Default to 60 minutes
+    deliveryTime: 60,
   });
+
+  // Explicitly type the slider value change handler
+  const handleSliderValueChange = (value: number) => {
+    setFilters(prev => ({ ...prev, deliveryTime: value }));
+  };
+
+  // Fetch restaurants from API
+  const fetchRestaurants = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      console.log('Fetching restaurants...');
+      const response = await axios.get('https://gebeta-delivery1.onrender.com/api/v1/restaurants');
+      console.log('API Response:', response);
+      
+      // Handle different possible response structures
+      let restaurantsData = [];
+      
+      // Case 1: Data is nested under response.data.data.restaurants (from logs)
+      if (response?.data?.data?.restaurants && Array.isArray(response.data.data.restaurants)) {
+        console.log('Found restaurants in response.data.data.restaurants');
+        restaurantsData = response.data.data.restaurants;
+      } 
+      // Case 2: Data is directly in response.data (array)
+      else if (Array.isArray(response?.data)) {
+        console.log('Found restaurants directly in response.data');
+        restaurantsData = response.data;
+      }
+      // Case 3: Data is nested under response.data.data (array)
+      else if (Array.isArray(response?.data?.data)) {
+        console.log('Found restaurants in response.data.data');
+        restaurantsData = response.data.data;
+      } 
+      // Case 4: No valid data found
+      else {
+        console.warn('Unexpected API response structure:', response?.data);
+        throw new Error('Unexpected data format received from server');
+      }
+      
+      console.log('Setting restaurants data:', restaurantsData);
+      setRestaurants(restaurantsData);
+      setFilteredRestaurants(restaurantsData);
+      
+    } catch (err: unknown) {
+      console.error('Error fetching restaurants:', err);
+      const errorMessage = err instanceof Error ? err.message : 'Failed to load restaurants. Please try again.';
+      setError(errorMessage);
+      setRestaurants([]);
+      setFilteredRestaurants([]);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchRestaurants();
+  }, []);
+
+  // Get location permission and current location
+  const getLocation = async () => {
+    try {
+      if (Platform.OS === 'web') {
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(
+            (position) => {
+              setLocation({
+                coords: {
+                  latitude: position.coords.latitude,
+                  longitude: position.coords.longitude,
+                  altitude: null,
+                  accuracy: null,
+                  altitudeAccuracy: null,
+                  heading: null,
+                  speed: null,
+                },
+                timestamp: Date.now(),
+              });
+              reverseGeocodeWithRetry(position.coords.latitude, position.coords.longitude)
+                .then((geocode) => {
+                  if (geocode && geocode.length > 0) {
+                    const { city, region } = geocode[0];
+                    setAddress(`${city || ''}, ${region || ''}`.trim() || 'Location found');
+                  } else {
+                    setAddress('Location not available');
+                  }
+                })
+                .catch(() => setAddress('Please enter your location'));
+            },
+            () => setAddress('Please enter your location'),
+            { timeout: 10000 }
+          );
+        } else {
+          setAddress('Please enter your location');
+        }
+        setLocationPermission(true);
+        setIsLoading(false);
+        return;
+      }
+
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      setLocationPermission(status === 'granted');
+
+      if (status === 'granted') {
+        const location = await Promise.race([
+          Location.getCurrentPositionAsync({}),
+          new Promise<never>((_, reject) => 
+            setTimeout(() => reject(new Error('Location request timeout')), 10000)
+          )
+        ]);
+
+        setLocation(location);
+
+        try {
+          const geocode = await reverseGeocodeWithRetry(
+            location.coords.latitude,
+            location.coords.longitude
+          );
+
+          if (geocode && geocode.length > 0) {
+            const { city, region } = geocode[0];
+            setAddress(`${city || ''}, ${region || ''}`.trim() || 'Location found');
+          } else {
+            setAddress('Location found (address not available)');
+          }
+        } catch (geocodeError) {
+          console.warn('Reverse geocoding failed:', geocodeError);
+          setAddress(`Location: ${location.coords.latitude.toFixed(4)}, ${location.coords.longitude.toFixed(4)}`);
+        }
+      } else {
+        setAddress('Location permission denied');
+      }
+    } catch (error) {
+      console.error('Error getting location:', error);
+      setAddress('Error getting location. Using default location.');
+      setLocation({
+        coords: {
+          latitude: 9.0054,
+          longitude: 38.7636,
+          altitude: null,
+          accuracy: null,
+          altitudeAccuracy: null,
+          heading: null,
+          speed: null,
+        },
+        timestamp: Date.now(),
+      });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const reverseGeocodeWithRetry = async (latitude: number, longitude: number, retries = 3, delay = 1000) => {
+    for (let i = 0; i < retries; i++) {
+      try {
+        const geocode = await Promise.race([
+          Location.reverseGeocodeAsync({ latitude, longitude }),
+          new Promise<never>((_, reject) => 
+            setTimeout(() => reject(new Error('Reverse geocoding timeout')), 10000)
+          )
+        ]);
+        return geocode;
+      } catch (error) {
+        if (i === retries - 1) throw error;
+        await new Promise(resolve => setTimeout(resolve, delay * (i + 1)));
+      }
+    }
+    throw new Error('Max retries reached for reverse geocoding');
+  };
+
+  useEffect(() => {
+    getLocation();
+  }, []);
 
   const togglePriceRange = (priceRange: string) => {
     let min = 0;
     let max = 1000;
-    
+
     switch (priceRange) {
       case 'Under 100 ETB':
         max = 99;
@@ -464,10 +416,10 @@ export default function RestaurantsScreen() {
         max = 1000;
         break;
     }
-    
+
     setFilters(prev => ({
       ...prev,
-      priceRange: [min, max]
+      priceRange: [min, max],
     }));
   };
 
@@ -478,7 +430,7 @@ export default function RestaurantsScreen() {
         cuisine.id === cuisineId 
           ? { ...cuisine, selected: !cuisine.selected } 
           : cuisine
-      )
+      ),
     }));
   };
 
@@ -487,7 +439,7 @@ export default function RestaurantsScreen() {
       ...prev,
       dietaryOptions: prev.dietaryOptions.includes(option)
         ? prev.dietaryOptions.filter(item => item !== option)
-        : [...prev.dietaryOptions, option]
+        : [...prev.dietaryOptions, option],
     }));
   };
 
@@ -496,225 +448,86 @@ export default function RestaurantsScreen() {
   };
 
   const handleRestaurantPress = (restaurantId: string) => {
-    // Navigate to the restaurant details page with the restaurant ID
     router.push({
-      pathname: "/restaurant/[id]",
-      params: { id: restaurantId }
+      pathname: '/restaurant/[id]',
+      params: { id: restaurantId },
     });
   };
 
-  // Helper function to retry reverse geocoding with exponential backoff
-  const reverseGeocodeWithRetry = async (latitude: number, longitude: number, retries = 3, delay = 1000) => {
-    for (let i = 0; i < retries; i++) {
-      try {
-        const geocode = await Promise.race([
-          Location.reverseGeocodeAsync({ latitude, longitude }),
-          new Promise<never>((_, reject) => 
-            setTimeout(() => reject(new Error('Reverse geocoding timeout')), 10000) // 10 second timeout
-          )
-        ]);
-        return geocode;
-      } catch (error) {
-        if (i === retries - 1) throw error;
-        await new Promise(resolve => setTimeout(resolve, delay * (i + 1)));
-      }
-    }
-    throw new Error('Max retries reached for reverse geocoding');
-  };
-
-  // Get location permission and current location
-  const getLocation = async () => {
-    try {
-      if (Platform.OS === 'web') {
-        // Handle web differently since expo-location has limited support
-        setAddress("New York, NY");
-        setLocationPermission(true);
-        setIsLoading(false);
-        return;
-      }
-      
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      setLocationPermission(status === "granted");
-      
-      if (status === "granted") {
-        // Get current position with timeout
-        const location = await Promise.race([
-          Location.getCurrentPositionAsync({}),
-          new Promise<never>((_, reject) => 
-            setTimeout(() => reject(new Error('Location request timeout')), 10000) // 10 second timeout
-          )
-        ]);
-        
-        setLocation(location);
-        
-        try {
-          // Get address from coordinates with retry logic
-          const geocode = await reverseGeocodeWithRetry(
-            location.coords.latitude,
-            location.coords.longitude
-          );
-          
-          if (geocode && geocode.length > 0) {
-            const locationInfo = geocode[0];
-            const city = 'city' in locationInfo ? locationInfo.city : '';
-            const region = 'region' in locationInfo ? locationInfo.region : '';
-            setAddress(`${city || ""}, ${region || ""}`.trim() || "Location found");
-          } else {
-            setAddress("Location found (address not available)");
-          }
-        } catch (geocodeError) {
-          console.warn("Reverse geocoding failed:", geocodeError);
-          setAddress(`Location: ${location.coords.latitude.toFixed(4)}, ${location.coords.longitude.toFixed(4)}`);
-        }
-      } else {
-        setAddress("Location permission denied");
-      }
-    } catch (error) {
-      console.error("Error getting location:", error);
-      setAddress("Error getting location. Using default location.");
-      // Set a default location (Addis Ababa) if location fails
-      setLocation({
-        coords: {
-          latitude: 9.0054,
-          longitude: 38.7636,
-          altitude: null,
-          accuracy: null,
-          altitudeAccuracy: null,
-          heading: null,
-          speed: null
-        },
-        timestamp: Date.now()
-      });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-  
-  useEffect(() => {
-    getLocation();
-  }, []);
-
-  // Filter restaurants based on search query, category, and filters with type safety
-  const filterRestaurants = useCallback((): void => {
+  const filterRestaurants = useCallback(() => {
     let filtered = [...restaurants];
-    
+
     // Apply search query
     if (searchQuery) {
       const query = searchQuery.trim().toLowerCase();
-      filtered = filtered.filter((restaurant: Restaurant) => 
+      filtered = filtered.filter(restaurant =>
         restaurant.name.toLowerCase().includes(query) ||
-        (restaurant.cuisine && restaurant.cuisine.toLowerCase().includes(query)) ||
-        (restaurant.categories && restaurant.categories.some((cat: string) => 
-          cat.toLowerCase().includes(query)
-        ))
+        restaurant.cuisineTypes.some(cuisine => cuisine.toLowerCase().includes(query)) ||
+        restaurant.description?.toLowerCase().includes(query)
       );
     }
-    
+
     // Apply category filter
     if (selectedCategory !== 'All') {
-      filtered = filtered.filter((restaurant: Restaurant) => 
-        (restaurant.categories && restaurant.categories.includes(selectedCategory)) ||
-        (restaurant.cuisine && restaurant.cuisine === selectedCategory)
+      filtered = filtered.filter(restaurant =>
+        restaurant.cuisineTypes.includes(selectedCategory)
       );
     }
-    
-    // Apply price range filter
+
+    // Apply price range filter (assuming price range is estimated from rating)
     const [minPrice, maxPrice] = filters.priceRange;
-    filtered = filtered.filter((restaurant) => {
-      if (!restaurant.priceLevel) return false;
-      
-      // Extract numeric values from price level string (e.g., '100-300 ETB' -> {min: 100, max: 300})
-      const priceRangeMatch = restaurant.priceLevel.match(/(\d+)(?:-(\d+))?/);
-      if (!priceRangeMatch) return false;
-      
-      const min = parseInt(priceRangeMatch[1], 10);
-      const max = priceRangeMatch[2] ? parseInt(priceRangeMatch[2], 10) : min;
-      
-      // Check if the restaurant's price range overlaps with the filter range
-      return min <= maxPrice && max >= minPrice;
+    filtered = filtered.filter(restaurant => {
+      // Estimate price based on rating (simplified logic, adjust as needed)
+      const estimatedPrice = restaurant.ratingAverage * 100; // Example: 4.5 rating -> ~450 ETB
+      return estimatedPrice >= minPrice && estimatedPrice <= maxPrice;
     });
-    
+
     // Apply cuisine filter
     const selectedCuisines = filters.cuisines
       .filter(cuisine => cuisine.selected)
-      .map(cuisine => cuisine.id.toLowerCase());
-      
+      .map(cuisine => cuisine.name);
     if (selectedCuisines.length > 0) {
-      filtered = filtered.filter(restaurant => 
-        restaurant.cuisine && 
-        selectedCuisines.includes(restaurant.cuisine.toLowerCase())
+      filtered = filtered.filter(restaurant =>
+        restaurant.cuisineTypes.some(cuisine => selectedCuisines.includes(cuisine))
       );
     }
-    
+
     // Apply open now filter
     if (filters.openNow) {
-      const now = new Date();
-      const currentDay = now.toLocaleDateString('en-US', { weekday: 'long' });
-      const currentTime = now.getHours() * 100 + now.getMinutes();
-
-      filtered = filtered.filter((restaurant) => {
-        const hours = restaurant.openingHours?.[currentDay];
-        if (!hours) return false;
-        
-        // Check if the restaurant is open at the current time
-        const { open, close } = hours;
-        
-        // Convert time strings to minutes since midnight for comparison
-        const parseTime = (timeStr: string) => {
-          const [hours, minutes] = timeStr.split(':').map(Number);
-          return hours * 100 + (minutes || 0);
-        };
-          
-        const openTimeInMinutes = parseTime(open);
-        let closeTimeInMinutes = parseTime(close);
-        
-        // Handle overnight hours
-        if (closeTimeInMinutes < openTimeInMinutes) {
-          closeTimeInMinutes += 2400; // Add 24 hours
-        }
-        
-        return currentTime >= openTimeInMinutes && currentTime <= closeTimeInMinutes;
-      });
+      filtered = filtered.filter(restaurant => restaurant.isOpenNow);
     }
-    
+
     // Apply rating filter
     if (filters.minRating > 0) {
-      filtered = filtered.filter(
-        (restaurant) => restaurant.rating >= filters.minRating
-      );
+      filtered = filtered.filter(restaurant => restaurant.ratingAverage >= filters.minRating);
     }
-    
+
     // Apply dietary options filter
     if (filters.dietaryOptions.length > 0) {
-      filtered = filtered.filter(restaurant => 
-        restaurant.dietaryOptions && 
-        filters.dietaryOptions.every(option => 
-          restaurant.dietaryOptions?.includes(option)
-        )
+      filtered = filtered.filter(restaurant =>
+        filters.dietaryOptions.every(option => restaurant.cuisineTypes.includes(option))
       );
     }
-    
-    // Apply delivery time filter
-    if (filters.deliveryTime !== null) {
+
+    // Apply delivery time filter (assuming deliveryRadiusMeters correlates with delivery time)
+    if (filters.deliveryTime) {
       filtered = filtered.filter(restaurant => {
-        const deliveryTime = parseDeliveryTime(restaurant.deliveryTime);
-        return deliveryTime > 0 && deliveryTime <= filters.deliveryTime!;
+        const estimatedDeliveryTime = Math.round(restaurant.deliveryRadiusMeters / 100); // Simplified: 100m = 1 min
+        return estimatedDeliveryTime <= filters.deliveryTime;
       });
     }
-    
-    setFilteredRestaurants(filtered);
-  }, [searchQuery, selectedCategory, filters, restaurants, setFilteredRestaurants]);
 
-  // Call filterRestaurants when dependencies change
+    setFilteredRestaurants(filtered);
+  }, [searchQuery, selectedCategory, filters, restaurants]);
+
   useEffect(() => {
     filterRestaurants();
   }, [filterRestaurants]);
-  
+
   const applyFilters = () => {
     setShowFilterModal(false);
   };
 
-  // Helper function to check if a price range matches the current filter
   const isPriceRangeSelected = (range: string): boolean => {
     const [min, max] = filters.priceRange;
     switch (range) {
@@ -731,7 +544,6 @@ export default function RestaurantsScreen() {
     }
   };
 
-  // Reset all filters
   const resetFilters = () => {
     setFilters({
       priceRange: [0, 1000],
@@ -764,11 +576,13 @@ export default function RestaurantsScreen() {
             placeholderTextColor={colors.placeholderText}
             value={searchQuery}
             onChangeText={setSearchQuery}
+            accessibilityLabel="Search restaurants"
           />
         </View>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={styles.filterButton}
           onPress={() => setShowFilterModal(true)}
+          accessibilityLabel="Open filter options"
         >
           <FontAwesome5 name="filter" size={20} color={colors.text} />
         </TouchableOpacity>
@@ -780,7 +594,7 @@ export default function RestaurantsScreen() {
         style={styles.categoriesContainer}
         contentContainerStyle={styles.categoriesContent}
       >
-        {restaurantCategories.map((category) => (
+        {restaurantCategories.map(category => (
           <CategoryPill
             key={category}
             title={category}
@@ -794,6 +608,17 @@ export default function RestaurantsScreen() {
         <View style={styles.loadingContainer}>
           <Text style={styles.loadingText}>Loading restaurants...</Text>
         </View>
+      ) : error ? (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>{error}</Text>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={fetchRestaurants}
+            accessibilityLabel="Retry loading restaurants"
+          >
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </TouchableOpacity>
+        </View>
       ) : filteredRestaurants.length === 0 ? (
         <View style={styles.emptyContainer}>
           <Text style={styles.emptyText}>No restaurants found</Text>
@@ -804,17 +629,58 @@ export default function RestaurantsScreen() {
           contentContainerStyle={styles.restaurantsListContent}
           showsVerticalScrollIndicator={false}
         >
-          {filteredRestaurants.map((restaurant) => (
+          {filteredRestaurants.map(restaurant => (
             <RestaurantCard
-              key={restaurant.id}
-              restaurant={restaurant}
-              onPress={() => handleRestaurantPress(restaurant.id)}
+              key={restaurant._id}
+              restaurant={{
+                id: restaurant._id, // Map _id to id
+                _id: restaurant._id,
+                name: restaurant.name,
+                slug: restaurant.slug,
+                // Required properties
+                imageUrl: restaurant.imageCover, // Using imageCover as imageUrl
+                ownerId: restaurant.managerId, // Using managerId as ownerId
+                deliveryRadiusMeters: restaurant.deliveryRadiusMeters,
+                // Location data
+                ...(restaurant.location?.coordinates && {
+                  location: {
+                    latitude: restaurant.location.coordinates[1],
+                    longitude: restaurant.location.coordinates[0],
+                  },
+                }),
+                address: restaurant.location?.address || '',
+                description: restaurant.description || '',
+                // Required properties from the interface
+                cuisine: restaurant.cuisineTypes[0] || 'Other',
+                priceLevel: `${Math.round(restaurant.ratingAverage * 100)}-${Math.round(restaurant.ratingAverage * 100 + 200)} ETB`,
+                // Restaurant data
+                license: restaurant.license,
+                managerId: restaurant.managerId,
+                cuisineTypes: restaurant.cuisineTypes,
+                imageCover: restaurant.imageCover,
+                ratingAverage: restaurant.ratingAverage,
+                ratingQuantity: restaurant.ratingQuantity,
+                openHours: restaurant.openHours,
+                isDeliveryAvailable: restaurant.isDeliveryAvailable,
+                isOpenNow: restaurant.isOpenNow,
+                active: restaurant.active,
+                createdAt: restaurant.createdAt,
+                updatedAt: restaurant.updatedAt,
+                reviews: restaurant.reviews || [],
+                // Additional computed properties for display
+                shortDescription: restaurant.description ? 
+                  restaurant.description.substring(0, 100) + (restaurant.description.length > 100 ? '...' : '') : '',
+                reviewCount: restaurant.ratingQuantity,
+                // Additional display properties
+                deliveryTime: `${Math.round(restaurant.deliveryRadiusMeters / 100)} min`,
+                distance: `${(restaurant.deliveryRadiusMeters / 1000).toFixed(1)} km`,
+              }}
+              onPress={() => handleRestaurantPress(restaurant._id)}
             />
           ))}
         </ScrollView>
       )}
 
-      {/* Filter Modal */}
       <Modal
         visible={showFilterModal}
         animationType="slide"
@@ -825,7 +691,10 @@ export default function RestaurantsScreen() {
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <Text style={styles.modalTitle}>Filter Restaurants</Text>
-              <TouchableOpacity onPress={() => setShowFilterModal(false)}>
+              <TouchableOpacity
+                onPress={() => setShowFilterModal(false)}
+                accessibilityLabel="Close filter modal"
+              >
                 <X size={24} color={colors.text} />
               </TouchableOpacity>
             </View>
@@ -834,7 +703,7 @@ export default function RestaurantsScreen() {
               <View style={styles.filterSection}>
                 <Text style={styles.filterSectionTitle}>Price Range (ETB)</Text>
                 <View style={styles.priceRangeContainer}>
-                  {priceRanges.map((price) => {
+                  {priceRanges.map(price => {
                     const isSelected = isPriceRangeSelected(price.value);
                     return (
                       <TouchableOpacity
@@ -844,6 +713,7 @@ export default function RestaurantsScreen() {
                           isSelected && styles.priceButtonSelected,
                         ]}
                         onPress={() => togglePriceRange(price.value)}
+                        accessibilityLabel={`Select price range ${price.label}`}
                       >
                         <Text
                           style={[
@@ -862,7 +732,7 @@ export default function RestaurantsScreen() {
               <View style={styles.filterSection}>
                 <Text style={styles.filterSectionTitle}>Cuisine Type</Text>
                 <View style={styles.tagsContainer}>
-                  {filters.cuisines.map((cuisine) => (
+                  {filters.cuisines.map(cuisine => (
                     <TouchableOpacity
                       key={cuisine.id}
                       style={[
@@ -870,11 +740,12 @@ export default function RestaurantsScreen() {
                         cuisine.selected && styles.tagButtonSelected,
                       ]}
                       onPress={() => toggleCuisine(cuisine.id)}
+                      accessibilityLabel={`Select ${cuisine.name} cuisine`}
                     >
                       <Text
                         style={[
                           styles.tagButtonText,
-                          cuisine.selected && styles.tagButtonTextSelected,
+                          cuisine.selected ? styles.tagButtonTextSelected : null,
                         ]}
                       >
                         {cuisine.name}
@@ -892,7 +763,7 @@ export default function RestaurantsScreen() {
                       {filters.dietaryOptions.length}
                     </Text>
                   )}
-                  {['Vegetarian', 'Vegan', 'Gluten-Free', 'Halal'].map((option) => (
+                  {['Vegan'].map(option => (
                     <TouchableOpacity
                       key={option}
                       style={[
@@ -900,6 +771,7 @@ export default function RestaurantsScreen() {
                         filters.dietaryOptions.includes(option) && styles.tagButtonSelected,
                       ]}
                       onPress={() => toggleDietaryOption(option)}
+                      accessibilityLabel={`Select ${option} dietary option`}
                     >
                       <Text
                         style={[
@@ -915,39 +787,25 @@ export default function RestaurantsScreen() {
               </View>
 
               <View style={styles.filterSection}>
-                <View style={styles.filterRow}>
-                  <Text style={styles.filterSectionTitle}>
-                    Max Delivery Time: {filters.deliveryTime} min
-                  </Text>
-                </View>
-                <View style={styles.sliderContainer}>
-                  <View style={styles.sliderTrack}>
-                    <View 
-                      style={[
-                        styles.sliderFill,
-                        { width: `${((filters.deliveryTime || 60) / 120) * 100}%` }
-                      ]} 
-                    />
-                  </View>
-                  <View style={styles.sliderLabels}>
-                    <Text style={styles.sliderLabel}>15 min</Text>
-                    <Text style={styles.sliderLabel}>60 min</Text>
-                    <Text style={styles.sliderLabel}>120 min</Text>
-                  </View>
-                  <View style={styles.sliderThumbContainer}>
-                    <View 
-                      style={styles.sliderThumb}
-                      onStartShouldSetResponder={() => true}
-                      onMoveShouldSetResponder={() => true}
-                      onResponderMove={(e) => {
-                        const { locationX } = e.nativeEvent;
-                        const containerWidth = e.currentTarget.measure(() => {});
-                        const percentage = Math.min(Math.max(locationX / 300, 0), 1);
-                        const newValue = Math.round(15 + (percentage * 105)); // 15 to 120 minutes
-                        setFilters(prev => ({ ...prev, maxDeliveryTime: newValue }));
-                      }}
-                    />
-                  </View>
+                <Text style={styles.filterSectionTitle}>
+                  Max Delivery Time: {filters.deliveryTime} min
+                </Text>
+                <Slider
+                  style={styles.sliderTrack}
+                  minimumValue={15}
+                  maximumValue={120}
+                  step={1}
+                  value={filters.deliveryTime}
+                  onValueChange={handleSliderValueChange}
+                  minimumTrackTintColor={colors.primary}
+                  maximumTrackTintColor={colors.lightGray}
+                  thumbTintColor={Platform.OS === 'android' ? colors.primary : undefined}
+                  accessibilityLabel="Adjust maximum delivery time"
+                />
+                <View style={styles.sliderLabels}>
+                  <Text style={styles.sliderLabel}>15 min</Text>
+                  <Text style={styles.sliderLabel}>60 min</Text>
+                  <Text style={styles.sliderLabel}>120 min</Text>
                 </View>
               </View>
 
@@ -956,11 +814,12 @@ export default function RestaurantsScreen() {
                   <Text style={styles.filterSectionTitle}>Open Now</Text>
                   <Switch
                     value={filters.openNow}
-                    onValueChange={(value) =>
-                      setFilters((prev) => ({ ...prev, openNow: value }))
+                    onValueChange={value =>
+                      setFilters(prev => ({ ...prev, openNow: value }))
                     }
                     trackColor={{ false: colors.lightGray, true: colors.primary }}
                     thumbColor="#fff"
+                    accessibilityLabel="Toggle open now filter"
                   />
                 </View>
               </View>
@@ -968,15 +827,16 @@ export default function RestaurantsScreen() {
               <View style={styles.filterSection}>
                 <Text style={styles.filterSectionTitle}>Minimum Rating</Text>
                 <View style={styles.ratingContainer}>
-                  {[1, 2, 3, 4, 5].map((star) => (
+                  {[1, 2, 3, 4, 5].map(star => (
                     <TouchableOpacity
                       key={star}
                       onPress={() =>
-                        setFilters((prev) => ({
+                        setFilters(prev => ({
                           ...prev,
                           minRating: prev.minRating === star ? 0 : star,
                         }))
                       }
+                      accessibilityLabel={`Set minimum rating to ${star} stars`}
                     >
                       <Text
                         style={[
@@ -999,12 +859,14 @@ export default function RestaurantsScreen() {
               <TouchableOpacity
                 style={[styles.filterButton, styles.resetButton]}
                 onPress={resetFilters}
+                accessibilityLabel="Reset all filters"
               >
                 <Text style={styles.resetButtonText}>Reset</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.filterButton, styles.applyButton]}
                 onPress={applyFilters}
+                accessibilityLabel="Apply filters"
               >
                 <Text style={styles.applyButtonText}>Apply Filters</Text>
               </TouchableOpacity>
@@ -1017,6 +879,33 @@ export default function RestaurantsScreen() {
 }
 
 const styles = StyleSheet.create({
+  sliderContainer: {
+    height: 40,
+    justifyContent: 'center',
+    width: '100%',
+  },
+  track: {
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#00000022',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  trackActive: {
+    position: 'absolute',
+    height: '100%',
+    backgroundColor: '#0000FF',
+  },
+  thumb: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: '#0000FF',
+    position: 'absolute',
+    top: '50%',
+    marginTop: -10,
+    zIndex: 1,
+  },
   container: {
     flex: 1,
     backgroundColor: colors.background,
@@ -1026,8 +915,8 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   locationContainer: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   locationIcon: {
     marginRight: 8,
@@ -1035,20 +924,20 @@ const styles = StyleSheet.create({
   locationText: {
     ...typography.body,
     color: colors.text,
-    fontWeight: "500",
+    fontWeight: '500',
     flex: 1,
     marginRight: 4,
   },
   searchContainer: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 16,
     paddingBottom: 12,
   },
   searchInputContainer: {
     flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
     backgroundColor: colors.inputBackground,
     borderRadius: 8,
     paddingHorizontal: 12,
@@ -1066,8 +955,8 @@ const styles = StyleSheet.create({
   filterButton: {
     width: 40,
     height: 40,
-    justifyContent: "center",
-    alignItems: "center",
+    justifyContent: 'center',
+    alignItems: 'center',
     marginLeft: 12,
     backgroundColor: colors.lightGray,
     borderRadius: 8,
@@ -1162,21 +1051,9 @@ const styles = StyleSheet.create({
   tagButtonTextSelected: {
     color: colors.white,
   },
-  sliderContainer: {
-    marginTop: 12,
-    marginBottom: 12,
-  },
   sliderTrack: {
     height: 4,
-    backgroundColor: colors.lightGray,
-    borderRadius: 2,
-    position: 'relative',
-    marginBottom: 8,
-  },
-  sliderFill: {
-    height: '100%',
-    backgroundColor: colors.primary,
-    borderRadius: 2,
+    marginVertical: 12,
   },
   sliderLabels: {
     flexDirection: 'row',
@@ -1186,28 +1063,6 @@ const styles = StyleSheet.create({
   sliderLabel: {
     ...typography.small,
     color: colors.lightText,
-  },
-  sliderThumbContainer: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    height: 24,
-    justifyContent: 'center',
-    marginTop: -10,
-  },
-  sliderThumb: {
-    width: 24,
-    height: 24,
-    borderRadius: 12,
-    backgroundColor: colors.primary,
-    position: 'absolute',
-    left: '50%',
-    marginLeft: -12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 2,
-    elevation: 2,
   },
   priceButton: {
     paddingVertical: 8,
@@ -1279,10 +1134,31 @@ const styles = StyleSheet.create({
     ...typography.body,
     color: colors.lightText,
   },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 16,
+  },
+  errorText: {
+    ...typography.body,
+    color: colors.error,
+    marginBottom: 16,
+  },
+  retryButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    backgroundColor: colors.primary,
+    borderRadius: 8,
+  },
+  retryButtonText: {
+    ...typography.button,
+    color: colors.white,
+  },
   emptyContainer: {
     flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   emptyText: {
     ...typography.body,

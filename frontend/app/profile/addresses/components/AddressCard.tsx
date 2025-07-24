@@ -1,6 +1,6 @@
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { AddressType } from '@/types/address';
-import { Home, Office, Edit2, X, Check } from 'lucide-react-native';
+import { MapPin, Edit2, X, Check } from 'lucide-react-native';
 
 interface AddressCardProps {
   address: AddressType;
@@ -10,11 +10,20 @@ interface AddressCardProps {
 }
 
 export default function AddressCard({ address, onEdit, onDelete, onSetDefault }: AddressCardProps) {
-  const IconMap = {
-    home: <Home size={24} color="#666" />,
-    work: <Office size={24} color="#666" />,
-    other: <></>,
-  };
+  const getLabelStyle = (type: string) => ({
+    backgroundColor: 
+      type === 'home' ? '#E3F2FD' : 
+      type === 'work' ? '#E8F5E9' : '#F3E5F5',
+    color: 
+      type === 'home' ? '#1976D2' : 
+      type === 'work' ? '#2E7D32' : '#7B1FA2',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 4,
+    fontSize: 12,
+    fontWeight: '600' as const,
+    marginRight: 8,
+  });
 
   const labelMap = {
     home: 'Home',
@@ -25,11 +34,8 @@ export default function AddressCard({ address, onEdit, onDelete, onSetDefault }:
   return (
     <View style={styles.card}>
       <View style={styles.header}>
-        <View style={styles.iconContainer}>
-          {IconMap[address.label]}
-        </View>
         <View style={styles.labelContainer}>
-          <Text style={styles.label}>{labelMap[address.label]}</Text>
+          <Text style={getLabelStyle(address.label)}>{labelMap[address.label]}</Text>
           {address.isDefault && (
             <Text style={styles.defaultBadge}>Default</Text>
           )}
@@ -39,6 +45,7 @@ export default function AddressCard({ address, onEdit, onDelete, onSetDefault }:
       <View style={styles.addressContainer}>
         <Text style={styles.address}>{address.street}</Text>
         <Text style={styles.address}>{`${address.city}, ${address.state} ${address.postalCode}`}</Text>
+        {address.note && <Text style={styles.note}>{address.note}</Text>}
       </View>
       
       <View style={styles.actions}>
@@ -89,13 +96,12 @@ const styles = StyleSheet.create({
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 8,
-  },
-  iconContainer: {
-    marginRight: 8,
+    marginBottom: 12,
   },
   labelContainer: {
-    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
   },
   label: {
     fontSize: 16,
@@ -118,6 +124,13 @@ const styles = StyleSheet.create({
   address: {
     fontSize: 14,
     color: '#666',
+    marginBottom: 4,
+  },
+  note: {
+    fontSize: 13,
+    color: '#888',
+    fontStyle: 'italic',
+    marginTop: 4,
   },
   actions: {
     flexDirection: 'row',

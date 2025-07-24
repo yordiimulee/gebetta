@@ -6,6 +6,7 @@ export type AddressType = {
   postalCode: string;
   label: 'home' | 'work' | 'other';
   isDefault: boolean;
+  note?: string;
   createdAt: string;
   updatedAt: string;
 };

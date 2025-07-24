@@ -10,14 +10,14 @@ import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import {
   AlertCircle,
-  Camera,
+  Camera as CameraIcon,
   Check,
   ChevronDown,
-  DollarSign,
+  DollarSign as DollarSignIcon,
   Edit2,
-  Plus,
+  Plus as PlusIcon,
   Search,
-  Trash2,
+  Trash2 as TrashIcon,
   X
 } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
@@ -322,7 +322,7 @@ export default function MenuScreen() {
             style={[styles.menuItemActionButton, styles.deleteButton]}
             onPress={() => handleDeleteItem(item)}
           >
-            <Trash2 size={16} color={colors.error} />
+            <TrashIcon size={16} color={colors.error} />
             <Text style={styles.deleteButtonText}>Delete</Text>
           </TouchableOpacity>
         </View>
@@ -338,7 +338,7 @@ export default function MenuScreen() {
           style={styles.addButton}
           onPress={handleAddItem}
         >
-          <Plus size={20} color={colors.white} />
+          <PlusIcon size={20} color={colors.white} />
           <Text style={styles.addButtonText}>Add Item</Text>
         </TouchableOpacity>
       </View>
@@ -496,7 +496,7 @@ export default function MenuScreen() {
               <View style={styles.formGroup}>
                 <Text style={styles.formLabel}>Price</Text>
                 <View style={styles.priceInputContainer}>
-                  <DollarSign size={20} color={colors.lightText} />
+                  <DollarSignIcon size={20} color={colors.lightText} />
                   <TextInput
                     style={styles.priceInput}
                     placeholder="0.00"
@@ -537,7 +537,7 @@ export default function MenuScreen() {
                     />
                   ) : (
                     <View style={styles.noImagePreview}>
-                      <Camera size={24} color={colors.lightText} />
+                      <CameraIcon size={24} color={colors.lightText} />
                       <Text style={styles.noImageText}>No image</Text>
                     </View>
                   )}

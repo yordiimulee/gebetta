@@ -82,38 +82,104 @@ const styles = StyleSheet.create({
 
 // Mock addresses to be used if none exist in the store
 const mockAddresses: AddressType[] = [
+  // Home addresses
   {
-    id: '1',
-    street: 'Bole Road',
+    id: 'home-1',
+    street: 'Bole Road, House #123',
     city: 'Addis Ababa',
     state: 'Addis Ababa',
     postalCode: '1000',
     label: 'home',
     isDefault: true,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
+    note: 'Main residence - 3rd floor, Ring Road',
+    createdAt: '2025-01-15T08:30:00.000Z',
+    updatedAt: '2025-06-20T14:25:00.000Z'
   },
   {
-    id: '2',
-    street: 'Kazanchis Business District',
+    id: 'home-2',
+    street: 'Megenagna, Condo #4B',
+    city: 'Addis Ababa',
+    state: 'Addis Ababa',
+    postalCode: '1000',
+    label: 'home',
+    isDefault: false,
+    note: 'Weekend house - Near Friendship Center',
+    createdAt: '2024-11-05T10:15:00.000Z',
+    updatedAt: '2025-05-12T16:45:00.000Z'
+  },
+  // Work addresses
+  {
+    id: 'work-1',
+    street: 'Kazanchis Business District, 5th Floor',
     city: 'Addis Ababa',
     state: 'Addis Ababa',
     postalCode: '1000',
     label: 'work',
     isDefault: false,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
+    note: 'EthioTech Solutions HQ - Reception on 1st floor',
+    createdAt: '2024-09-10T09:00:00.000Z',
+    updatedAt: '2025-06-18T11:30:00.000Z'
   },
   {
-    id: '3',
-    street: 'Sarbet',
+    id: 'work-2',
+    street: 'CMC Road, Building #42',
+    city: 'Addis Ababa',
+    state: 'Addis Ababa',
+    postalCode: '1000',
+    label: 'work',
+    isDefault: false,
+    note: 'Client site - Ask for security at main gate',
+    createdAt: '2025-02-20T13:45:00.000Z',
+    updatedAt: '2025-06-22T10:15:00.000Z'
+  },
+  {
+    id: 'work-3',
+    street: 'Bole Road, Dembel City Center, 7th Floor',
+    city: 'Addis Ababa',
+    state: 'Addis Ababa',
+    postalCode: '1000',
+    label: 'work',
+    isDefault: false,
+    note: 'Co-working space - Available 24/7 with access card',
+    createdAt: '2025-04-05T08:00:00.000Z',
+    updatedAt: '2025-06-21T17:30:00.000Z'
+  },
+  // Other addresses
+  {
+    id: 'other-1',
+    street: 'Sarbet District, Near Edna Mall',
     city: 'Addis Ababa',
     state: 'Addis Ababa',
     postalCode: '1000',
     label: 'other',
     isDefault: false,
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString()
+    note: 'Spa & Wellness Center - Open 9AM-9PM',
+    createdAt: '2024-10-15T07:30:00.000Z',
+    updatedAt: '2025-06-19T19:45:00.000Z'
+  },
+  {
+    id: 'other-2',
+    street: 'Bole Atlas, Behind DH Geda Tower',
+    city: 'Addis Ababa',
+    state: 'Addis Ababa',
+    postalCode: '1000',
+    label: 'other',
+    isDefault: false,
+    note: 'Friend\'s apartment - Call before visiting',
+    createdAt: '2025-03-12T16:20:00.000Z',
+    updatedAt: '2025-06-17T20:15:00.000Z'
+  },
+  {
+    id: 'other-3',
+    street: '4 Kilo, Arat Kilo Cultural Center',
+    city: 'Addis Ababa',
+    state: 'Addis Ababa',
+    postalCode: '1000',
+    label: 'other',
+    isDefault: false,
+    note: 'Weekly coffee meetup - Every Saturday 4PM',
+    createdAt: '2025-01-30T10:00:00.000Z',
+    updatedAt: '2025-06-23T15:30:00.000Z'
   }
 ];
 
@@ -125,31 +191,46 @@ export default function AddressesScreen() {
 
   useEffect(() => {
     const loadData = async () => {
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      setIsLoading(true);
       
-      // Initialize with mock data if no addresses exist
-      if (addresses.length === 0) {
-        mockAddresses.forEach(address => addAddress(address));
-        setDisplayAddresses(mockAddresses);
-      } else {
-        setDisplayAddresses(addresses);
+      try {
+        // Initialize with mock data if no addresses exist
+        if (addresses.length === 0) {
+          console.log('Initializing with mock addresses');
+          // Clear any existing addresses first to avoid duplicates
+          addresses.forEach(addr => removeAddress(addr.id));
+          // Add all mock addresses
+          mockAddresses.forEach(address => addAddress(address));
+          setDisplayAddresses(mockAddresses);
+        } else {
+          console.log('Using existing addresses:', addresses);
+          setDisplayAddresses([...addresses]);
+        }
+      } catch (error) {
+        console.error('Error loading addresses:', error);
+      } finally {
+        setIsLoading(false);
       }
-      
-      setIsLoading(false);
     };
     
     loadData();
-  }, [addresses.length]);
+  }, [addresses.length, addAddress, removeAddress]);
 
   // Group addresses by label
   const groupedAddresses = displayAddresses.reduce<GroupedAddresses>((acc, address) => {
     const label = address.label.toLowerCase();
+    console.log(`Processing address:`, { id: address.id, label, street: address.street });
     if (!acc[label]) {
+      console.log(`Creating new group for label: ${label}`);
       acc[label] = [];
     }
     acc[label].push(address);
+    console.log(`Added to group ${label}:`, address.street);
     return acc;
   }, {});
+
+  console.log('Grouped addresses:', Object.keys(groupedAddresses));
+  console.log('Display addresses:', displayAddresses.map(a => ({ id: a.id, label: a.label, street: a.street })));
 
   const handleAddAddress = () => {
     router.push("/profile/addresses/add");

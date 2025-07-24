@@ -46,7 +46,7 @@ interface ExtendedUser extends Omit<User, 'id'> {
 
 export default function ProfileScreen() {
   const router = useRouter();
-  const { user, isAuthenticated, isLoading, logout } = useAuthStore();
+  const { user, isAuthenticated, isLoading, logout, initializeAuth } = useAuthStore();
   const { recipes } = useRecipeStore();
   const { addresses, paymentMethods } = useProfileStore();
   const { orders } = useCartStore();
@@ -54,13 +54,16 @@ export default function ProfileScreen() {
   const [isLoadingProfile, setIsLoadingProfile] = useState(false);
   const [profileUser, setProfileUser] = useState<ExtendedUser | null>(null);
   const [isFollowingUser, setIsFollowingUser] = useState(false);
+  const [isInitialized, setIsInitialized] = useState(false);
 
-  // Redirect to auth screen if not authenticated
+  // Initialize auth state
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
-      router.replace("/(auth)");
-    }
-  }, [isAuthenticated, isLoading, router]);
+    const init = async () => {
+      await initializeAuth();
+      setIsInitialized(true);
+    };
+    init();
+  }, [initializeAuth]);
 
   // Update profile user when user data changes
   useEffect(() => {
@@ -81,7 +84,24 @@ export default function ProfileScreen() {
   }, [user]);
 
   // Show loading state while checking auth or loading profile
-  if (isLoading || !isAuthenticated || !profileUser) {
+  if (isLoading || !isInitialized) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
+
+  // Handle redirection in useEffect to prevent state updates during render
+  useEffect(() => {
+    if (isInitialized && !isAuthenticated) {
+      console.log('User not authenticated, redirecting to auth screen');
+      router.replace("/(auth)");
+    }
+  }, [isAuthenticated, isInitialized, router]);
+
+  // Show loading state while not initialized or if not authenticated
+  if (!isInitialized || !isAuthenticated) {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
         <ActivityIndicator size="large" color={colors.primary} />
@@ -90,7 +110,7 @@ export default function ProfileScreen() {
   }
 
   // Ensure we have a valid user before proceeding
-  if (!user) {
+  if (!user || !profileUser) {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
         <ActivityIndicator size="large" color={colors.primary} />

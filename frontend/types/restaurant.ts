@@ -1,12 +1,13 @@
 export interface Restaurant {
   id: string;
+  _id: string; // MongoDB identifier
   name: string;
+  slug: string;
   description?: string;
   address: string;
   cuisine: string;
   priceLevel: string;
   rating?: number;
-  reviewCount?: number;
   imageUrl: string;
   coverImageUrl?: string;
   isOpen?: boolean;
@@ -18,9 +19,22 @@ export interface Restaurant {
   contactPhone?: string;
   contactEmail?: string;
   location?: {
-    latitude: 9.025;
-    longitude: 38.75;
+    latitude: number;
+    longitude: number;
   };
+  deliveryRadiusMeters: number;
+  license: string;
+  cuisineTypes: string[];
+  imageCover: string;
+  ratingAverage: number;
+  ratingQuantity: number;
+  openHours: string;
+  isDeliveryAvailable: boolean;
+  isOpenNow: boolean;
+  active: boolean;
+  shortDescription?: string;
+  reviewCount?: number;
+  deliveryTime?: string | number;
   distance?: string;
   categories?: string[];
   createdAt: string;
