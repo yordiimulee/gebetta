@@ -21,6 +21,7 @@ import {
   UserMinus,
   UserPlus,
 } from "lucide-react-native";
+
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -32,6 +33,7 @@ import {
   View,
 } from "react-native";
 
+// Extend the User interface from useAuthStore
 interface ExtendedUser extends Omit<User, 'id'> {
   _id: string;
   name?: string;
@@ -45,8 +47,80 @@ interface ExtendedUser extends Omit<User, 'id'> {
 }
 
 export default function ProfileScreen() {
+  const { user, isAuthenticated, isLoading: isAuthLoading, initializeAuth, debugAuthState } = useAuthStore();
   const router = useRouter();
-  const { user, isAuthenticated, isLoading, logout, initializeAuth } = useAuthStore();
+  const [initialized, setInitialized] = useState(false);
+  const [debugInfo, setDebugInfo] = useState<any>(null);
+
+  // Initialize auth state on mount
+  useEffect(() => {
+    const init = async () => {
+      try {
+        console.log('ProfileScreen: Initializing auth...');
+        await initializeAuth();
+        
+        // Debug: Log the current auth state
+        const debugData = await debugAuthState();
+        setDebugInfo(debugData);
+        console.log('ProfileScreen: Auth debug info:', debugData);
+        
+      } catch (error) {
+        console.error('ProfileScreen: Error initializing auth:', error);
+      } finally {
+        setInitialized(true);
+      }
+    };
+    
+    init();
+  }, [initializeAuth, debugAuthState]);
+
+  // Handle redirection when not authenticated
+  useEffect(() => {
+    console.log('ProfileScreen: Auth state changed', {
+      initialized,
+      isAuthLoading,
+      isAuthenticated,
+      hasUser: !!user
+    });
+    
+    if (initialized && !isAuthLoading) {
+      if (!isAuthenticated || !user) {
+        console.log('ProfileScreen: Not authenticated, redirecting to auth screen');
+        router.replace('/(auth)');
+      }
+    }
+  }, [initialized, isAuthLoading, isAuthenticated, user, router]);
+  
+  // Show loading state while checking auth
+  if (isAuthLoading || !initialized) {
+    return (
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={{ marginTop: 10 }}>Loading your profile...</Text>
+        {debugInfo && (
+          <View style={{ marginTop: 20, padding: 10, backgroundColor: '#f0f0f0', borderRadius: 5 }}>
+            <Text style={{ fontFamily: 'monospace', fontSize: 12 }}>
+              Debug: {JSON.stringify(debugInfo, null, 2)}
+            </Text>
+          </View>
+        )}
+      </View>
+    );
+  }
+  
+  // If not authenticated, show nothing (will be redirected by the useEffect)
+  if (!isAuthenticated || !user) {
+    console.log('ProfileScreen: Not authenticated, rendering nothing');
+    return null;
+  }
+  
+  // Render the actual profile content
+  return <ProfileContent />;
+}
+
+function ProfileContent() {
+  const router = useRouter();
+  const { user, logout } = useAuthStore();
   const { recipes } = useRecipeStore();
   const { addresses, paymentMethods } = useProfileStore();
   const { orders } = useCartStore();
@@ -54,16 +128,7 @@ export default function ProfileScreen() {
   const [isLoadingProfile, setIsLoadingProfile] = useState(false);
   const [profileUser, setProfileUser] = useState<ExtendedUser | null>(null);
   const [isFollowingUser, setIsFollowingUser] = useState(false);
-  const [isInitialized, setIsInitialized] = useState(false);
-
-  // Initialize auth state
-  useEffect(() => {
-    const init = async () => {
-      await initializeAuth();
-      setIsInitialized(true);
-    };
-    init();
-  }, [initializeAuth]);
+  const [isLoading, setIsLoading] = useState(false);
 
   // Update profile user when user data changes
   useEffect(() => {
@@ -83,25 +148,8 @@ export default function ProfileScreen() {
     }
   }, [user]);
 
-  // Show loading state while checking auth or loading profile
-  if (isLoading || !isInitialized) {
-    return (
-      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
-        <ActivityIndicator size="large" color={colors.primary} />
-      </View>
-    );
-  }
-
-  // Handle redirection in useEffect to prevent state updates during render
-  useEffect(() => {
-    if (isInitialized && !isAuthenticated) {
-      console.log('User not authenticated, redirecting to auth screen');
-      router.replace("/(auth)");
-    }
-  }, [isAuthenticated, isInitialized, router]);
-
-  // Show loading state while not initialized or if not authenticated
-  if (!isInitialized || !isAuthenticated) {
+  // Show loading state while profile is loading
+  if (isLoadingProfile || !profileUser) {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
         <ActivityIndicator size="large" color={colors.primary} />

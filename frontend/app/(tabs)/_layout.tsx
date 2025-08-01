@@ -64,7 +64,7 @@ export default function TabsLayout() {
           name="create"
           options={{
             title: "Create",
-            tabBarIcon: ({ color }) => <FontAwesome5 name="plus-circle" size={24} color={color} />,
+            tabBarIcon: ({ color }) => <FontAwesome5 name="plus-circle" size={20} color={color} />,
           }}
         />
         <Tabs.Screen

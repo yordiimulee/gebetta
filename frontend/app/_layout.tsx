@@ -5,19 +5,36 @@ import { ActivityIndicator, View } from "react-native";
 import colors from "@/constants/colors";
 
 export default function RootLayout() {
-  const { isAuthenticated, isLoading, initializeAuth } = useAuthStore();
+  const { isAuthenticated, isLoading, initializeAuth, user } = useAuthStore();
   const [isInitialized, setIsInitialized] = useState(false);
   const router = useRouter();
 
+  // Debug log auth state changes
+  useEffect(() => {
+    console.log('RootLayout auth state changed:', {
+      isAuthenticated,
+      isLoading,
+      hasUser: !!user,
+      isInitialized
+    });
+  }, [isAuthenticated, isLoading, user, isInitialized]);
+
   // Initialize auth state on mount
   useEffect(() => {
+    console.log('RootLayout: Initializing auth...');
     const initAuth = async () => {
-      await initializeAuth();
-      setIsInitialized(true);
+      try {
+        await initializeAuth();
+        console.log('RootLayout: Auth initialization complete');
+      } catch (error) {
+        console.error('RootLayout: Error initializing auth:', error);
+      } finally {
+        setIsInitialized(true);
+      }
     };
     
     initAuth();
-  }, []);
+  }, [initializeAuth]);
 
   // Show loading indicator while initializing
   if (!isInitialized || isLoading) {
@@ -32,7 +49,10 @@ export default function RootLayout() {
     <Stack screenOptions={{ headerShown: false }}>
       {!isAuthenticated ? (
         // Auth routes
-        <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+        <>
+          <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+          <Stack.Screen name="login" options={{ headerShown: false }} />
+        </>
       ) : (
         // Authenticated routes
         <>

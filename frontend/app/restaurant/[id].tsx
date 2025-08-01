@@ -1,845 +1,789 @@
-import CategoryPill from "@/components/CategoryPill";
-import MenuItemCard from "@/components/MenuItemCard";
-import colors from "@/constants/colors";
-import typography from "@/constants/typography";
-import { menuCategories } from "@/mocks/restaurants";
-import { useAuthStore } from "@/store/authStore";
-import { useCartStore } from "@/store/cartStore";
-import { useRestaurantStore } from "@/store/restaurantStore";
-import { Restaurant } from "@/types/restaurant";
-import { Image } from "expo-image";
-import { LinearGradient } from "expo-linear-gradient";
-import { useLocalSearchParams, useRouter } from "expo-router";
-import { MaterialIcons, Ionicons } from "@expo/vector-icons";
-import React, { useEffect, useRef, useState } from "react";
-import { 
-  ActivityIndicator, 
-  Alert, 
-  Animated, 
-  Dimensions, 
-  Linking, 
-  Modal, 
-  Platform, 
-  ScrollView, 
-  StyleSheet, 
-  Text, 
-  TextInput, 
-  TouchableOpacity, 
-  View, 
-  TouchableOpacity as ModalTouchableOpacity 
-} from "react-native";
+import * as React from 'react';
+import { useState, useEffect } from 'react';
+import {
+  SafeAreaView,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+  Image,
+  ActivityIndicator,
+  TouchableOpacity,
+  Alert,
+} from 'react-native';
+import { FontAwesome } from '@expo/vector-icons';
+import { useLocalSearchParams, useRouter } from 'expo-router';
+import axios from 'axios';
+import * as Location from 'expo-location';
+import colors from '@/constants/colors';
+import typography from '@/constants/typography';
 
-// Conditionally import MapView to avoid web issues
-let MapView: any = null;
-let Marker: any = null;
-let PROVIDER_GOOGLE: any = null;
-
-// Only import on native platforms
-if (Platform.OS !== "web") {
-  try {
-    const ReactNativeMaps = require("react-native-maps");
-    MapView = ReactNativeMaps.default;
-    Marker = ReactNativeMaps.Marker;
-    PROVIDER_GOOGLE = ReactNativeMaps.PROVIDER_GOOGLE;
-  } catch (error) {
-    console.warn("react-native-maps could not be loaded", error);
-  }
+// Restaurant interface based on backend schema
+interface Restaurant {
+  _id: string;
+  name: string;
+  slug: string;
+  location: {
+    type: string;
+    coordinates: [number, number];
+    address: string;
+    description?: string;
+  };
+  cuisineTypes: string[];
+  ratingAverage: number;
+  ratingQuantity: number;
+  openHours: string;
+  isDeliveryAvailable: boolean;
+  isOpenNow: boolean;
+  imageCover: string;
+  deliveryRadiusMeters: number;
+  description: string;
+  license: string;
+  managerId: {
+    _id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+    role: string;
+  } | string;
+  reviewCount: number;
 }
 
-// Conditionally import Location to avoid web issues
-let Location: any = null;
-if (Platform.OS !== "web") {
-  try {
-    Location = require("expo-location");
-  } catch (error) {
-    console.warn("expo-location could not be loaded", error);
-  }
+// Menu interface based on API response
+interface Menu {
+  _id: string;
+  restaurantId: Restaurant;
+  menuType: string;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+// Food item interface
+interface Food {
+  _id: string;
+  foodName: string;
+  description?: string;
+  price: number;
+  image?: string;
+  isAvailable: boolean;
+  menuId: string;
+  ingredients?: string;
+  instructions?: string;
+  cookingTimeMinutes?: number;
+  rating?: number;
+  isFeatured?: boolean;
+  categoryId?: {
+    _id: string;
+    categoryName: string;
+  };
+  status: string;
+}
+
+// Cart item interface
+interface CartItem {
+  food: Food;
+  quantity: number;
 }
 
 export default function RestaurantDetailScreen() {
-  const [showReviewModal, setShowReviewModal] = useState(false);
-  const [reviewRating, setReviewRating] = useState<number>(0);
-  const [reviewComment, setReviewComment] = useState("");
-  const [isSubmittingReview, setIsSubmittingReview] = useState(false);
-  const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [locationPermission, setLocationPermission] = useState<boolean | null>(null);
-  const [userLocation, setUserLocation] = useState<{latitude: number, longitude: number} | null>(null);
-  const [showMap, setShowMap] = useState(false);
-  const [selectedCategory, setSelectedCategory] = useState<string>("All");
-
-  const { id } = useLocalSearchParams<{ id: string }>();
+  const { id } = useLocalSearchParams();
   const router = useRouter();
-  const { user } = useAuthStore();
-  const { items } = useCartStore();
-  const { fetchRestaurant, addReview } = useRestaurantStore();
+  const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
+  const [menus, setMenus] = useState<Menu[]>([]);
+  const [foodItems, setFoodItems] = useState<{ [menuId: string]: Food[] }>({});
+  const [cart, setCart] = useState<CartItem[]>([]);
+  const [quantitySelections, setQuantitySelections] = useState<{ [foodId: string]: number }>({});
+  const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingMenus, setIsLoadingMenus] = useState(true);
+  const [isPlacingOrder, setIsPlacingOrder] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [menuError, setMenuError] = useState<string | null>(null);
 
-  useEffect(() => {
-    const loadRestaurant = async () => {
-      try {
-        setIsLoading(true);
-        const data = await fetchRestaurant(id);
-        setRestaurant(data);
-      } catch (error) {
-        console.error("Error fetching restaurant:", error);
-      } finally {
-        setIsLoading(false);
+  const baseUrl = 'https://gebeta-delivery1.onrender.com';
+  const JWT_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY4N2EyNDE5ZmM2Y2IyYzk5MzIxMjQ3NSIsImlhdCI6MTc1MzA4MDI3NSwiZXhwIjoxNzYwODU2Mjc1fQ.vRs1UMH4h5L2WBZtJPOpfbJkYAAjXsIVHqYZ3_fIZAc';
+
+  // Fetch restaurant details
+  const fetchRestaurant = async () => {
+    try {
+      setIsLoading(true);
+      setError(null);
+      const response = await axios.get(`${baseUrl}/api/v1/restaurants/${id}`);
+      const restaurantData = response.data.data.restaurant;
+      if (!restaurantData) {
+        throw new Error('No restaurant data found');
       }
-    };
-
-    loadRestaurant();
-  }, [id, fetchRestaurant]);
-
-  const scrollY = useRef(new Animated.Value(0)).current;
-
-  // Calculate cart items count directly
-  const cartItemCount = items.reduce((count, item) => count + item.quantity, 0);
-
-  useEffect(() => {
-    // Simulate loading restaurant data
-    const timer = setTimeout(() => {
+      setRestaurant(restaurantData);
+    } catch (err: any) {
+      setError(err.message || 'Failed to load restaurant details');
+      setRestaurant(null);
+    } finally {
       setIsLoading(false);
-    }, 1000);
-
-    // Request location permission on native platforms
-    if (Platform.OS !== "web" && Location) {
-      (async () => {
-        try {
-          const { status } = await Location.requestForegroundPermissionsAsync();
-          setLocationPermission(status === "granted");
-
-          if (status === "granted") {
-            const location = await Location.getCurrentPositionAsync({});
-            setUserLocation({
-              latitude: location.coords.latitude,
-              longitude: location.coords.longitude,
-            });
-          }
-        } catch (error) {
-          console.warn("Error getting location:", error);
-        }
-      })();
     }
-
-    return () => clearTimeout(timer);
-  }, []);
-
-  const toggleMap = () => {
-    setShowMap(!showMap);
   };
 
-  const getDirections = async () => {
-    if (!restaurant?.location) return;
+  // Fetch menus for the restaurant
+  const fetchMenus = async () => {
+    try {
+      setIsLoadingMenus(true);
+      setMenuError(null);
+      const response = await axios.get(
+        `${baseUrl}/api/v1/food-menus?restaurantId=${id}`
+      );
+      const menuData = response.data.data || [];
+      setMenus(menuData);
 
-    // First, make sure the map is visible
-    if (!showMap) {
-      setShowMap(true);
-      // Small delay to ensure the map is rendered before trying to open directions
-      await new Promise(resolve => setTimeout(resolve, 300));
+      // Fetch food items for each menu
+      const foodPromises = menuData.map((menu: Menu) =>
+        axios.get(
+          `${baseUrl}/api/v1/foods/by-menu/${menu._id}`
+        ).catch(() => ({ data: { data: { foods: [] } } })) // Handle individual menu errors
+      );
+      const foodResponses = await Promise.all(foodPromises);
+      const foodItemsMap: { [menuId: string]: Food[] } = {};
+      foodResponses.forEach((res, index) => {
+        foodItemsMap[menuData[index]._id] = res.data.data.foods || [];
+      });
+      setFoodItems(foodItemsMap);
+    } catch (err: any) {
+      setMenuError(err.message || 'Failed to load menus');
+      setMenus([]);
+      setFoodItems({});
+    } finally {
+      setIsLoadingMenus(false);
     }
+  };
 
-    // If we're on web, open Google Maps in a new tab
-    if (Platform.OS === 'web') {
-      const { latitude, longitude } = restaurant.location;
-      const url = `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`;
-      window.open(url, '_blank');
+  // Update quantity for a food item
+  const updateQuantity = (foodId: string, delta: number) => {
+    setQuantitySelections((prev) => {
+      const currentQuantity = prev[foodId] || 1;
+      const newQuantity = Math.max(1, currentQuantity + delta);
+      return { ...prev, [foodId]: newQuantity };
+    });
+  };
+
+  // Add item to cart with selected quantity
+  const addToCart = (food: Food) => {
+    const quantity = quantitySelections[food._id] || 1;
+    setCart((prevCart) => {
+      const existingItem = prevCart.find((item) => item.food._id === food._id);
+      if (existingItem) {
+        return prevCart.map((item) =>
+          item.food._id === food._id
+            ? { ...item, quantity: item.quantity + quantity }
+            : item
+        );
+      }
+      return [...prevCart, { food, quantity }];
+    });
+    // Reset quantity selection after adding to cart
+    setQuantitySelections((prev) => ({ ...prev, [food._id]: 1 }));
+  };
+
+  // Place order
+  const placeOrder = async () => {
+    if (cart.length === 0) {
+      Alert.alert('Empty Cart', 'Please add items to your cart before placing an order.');
       return;
     }
 
-    // On mobile, try to open in the native maps app
-    const { latitude, longitude } = restaurant.location;
-    const url = Platform.select({
-      ios: `maps:${latitude},${longitude}?q=${encodeURIComponent(restaurant.address || restaurant.name || '')}`,
-      android: `geo:${latitude},${longitude}?q=${latitude},${longitude}(${encodeURIComponent(restaurant.name || '')})`
-    });
+    setIsPlacingOrder(true);
 
-    if (url) {
-      try {
-        await Linking.openURL(url);
-      } catch (error) {
-        console.error('Error opening maps app:', error);
-        // Fallback to web URL if native maps app fails
-        const webUrl = `https://www.google.com/maps/dir/?api=1&destination=${latitude},${longitude}`;
-        await Linking.openURL(webUrl);
+    try {
+      // Request location permission
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        throw new Error('Location permission denied. Please enable location services.');
       }
+
+      // Get current location
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+      const userLocation = {
+        lat: location.coords.latitude,
+        lng: location.coords.longitude,
+      };
+
+      const orderBody = {
+        orderItems: cart.map((item) => ({
+          foodId: item.food._id,
+          quantity: item.quantity,
+        })),
+        typeOfOrder: 'Delivery',
+        location: userLocation,
+      };
+
+      const response = await axios.post(
+        `${baseUrl}/api/v1/orders/place-order`,
+        orderBody,
+        {
+          headers: {
+            Authorization: `Bearer ${JWT_TOKEN}`,
+          },
+        }
+      );
+
+      if (response.data.status === 'success') {
+        Alert.alert('Success', 'Order placed successfully!');
+        setCart([]); // Clear cart
+        setQuantitySelections({}); // Reset quantities
+      } else {
+        throw new Error('Order placement failed');
+      }
+    } catch (err: any) {
+      Alert.alert('Error', err.message || 'Failed to place order. Please try again.');
+    } finally {
+      setIsPlacingOrder(false);
     }
   };
 
-  const requestLocationPermission = async () => {
-    if (Platform.OS === 'web') return;
-
-    try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      setLocationPermission(status === 'granted');
-
-      if (status === 'granted') {
-        const location = await Location.getCurrentPositionAsync({});
-        setUserLocation({
-          latitude: location.coords.latitude,
-          longitude: location.coords.longitude,
-        });
-      } else {
-        Alert.alert(
-          "Location Permission",
-          "We need your location to show directions. Please enable location services in your settings.",
-          [{ text: "OK" }]
-        );
-      }
-    } catch (error) {
-      console.warn('Error requesting location permission:', error);
+  useEffect(() => {
+    if (id) {
+      fetchRestaurant();
+      fetchMenus();
     }
+  }, [id]);
+
+  // Handle back navigation
+  const handleBackPress = () => {
+    router.back();
   };
 
   if (isLoading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={colors.primary} />
-        <Text style={styles.loadingText}>Loading restaurant details...</Text>
-      </View>
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={styles.loadingText}>Loading restaurant details...</Text>
+        </View>
+      </SafeAreaView>
     );
   }
 
-  if (!restaurant) {
+  if (error || !restaurant) {
     return (
-      <View style={styles.notFound}>
-        <Text style={typography.heading2}>Restaurant not found</Text>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => router.back()}
-        >
-          <Text style={styles.backButtonText}>Go Back</Text>
-        </TouchableOpacity>
-      </View>
+      <SafeAreaView style={styles.container}>
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>{error || 'Restaurant not found'}</Text>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={() => {
+              fetchRestaurant();
+              fetchMenus();
+            }}
+            accessibilityLabel="Retry loading restaurant details"
+          >
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={handleBackPress}
+            accessibilityLabel="Go back to restaurant list"
+          >
+            <Text style={styles.backButtonText}>Back to Restaurants</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
     );
   }
 
-  const filteredMenu = restaurant.menu && (selectedCategory === "All"
-    ? restaurant.menu
-    : restaurant.menu.filter(item => item.category === selectedCategory));
-
-  const formatOpeningHours = () => {
-    try {
-      if (!restaurant.openingHours || typeof restaurant.openingHours !== 'object') {
-        return (
-          <Text key="not-available" style={styles.hoursText}>
-            Opening hours not available
-          </Text>
-        );
-      }
-
-      // Convert the openingHours object to an array of entries and sort them
-      const sortedDays = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
-
-      return sortedDays.map(day => {
-        const hours = restaurant.openingHours?.[day];
-        if (!hours || !hours.open || !hours.close) return null;
-
-        return (
-          <Text key={day} style={styles.hoursText}>
-            {day}: {hours.open} - {hours.close}
-          </Text>
-        );
-      }).filter(Boolean); // Remove any null entries
-    } catch (error) {
-      console.error('Error formatting opening hours:', error);
-      return null;
-    }
-  };
-
-  const renderPriceLevel = () => {
-    const level = restaurant.priceLevel ? restaurant.priceLevel.length : 0;
-    return Array(3)
-      .fill(0)
-      .map((_, index) => (
-        <MaterialIcons
-          name="attach-money"
-          key={index}
-          size={14}
-          color={index < level ? colors.secondary : colors.lightText}
-        />
-      ));
-  };
-
-  const headerOpacity = scrollY.interpolate({
-    inputRange: [0, 150],
-    outputRange: [0, 1],
-    extrapolate: "clamp",
-  });
-
-  const handleAddToCart = (menuItemId: string) => {
-    // This function is implemented in the MenuItemCard component
-  };
-
-  const handleMenuItemPress = (menuItemId: string) => {
-    router.push(`/menu-item/${restaurant.id}/${menuItemId}`);
-  };
-
-  const handleOpenReviewModal = () => {
-    if (!user) {
-      Alert.alert(
-        "Login Required",
-        "You need to be logged in to leave a review.",
-        [
-          { text: "Cancel", style: "cancel" },
-          { text: "Login", onPress: () => router.push("/login") }
-        ]
-      );
-      return;
-    }
-
-    setShowReviewModal(true);
-  };
-
-  const handleSubmitReview = () => {
-    if (!user) return;
-
-    setIsSubmittingReview(true);
-
-    // Simulate API call
-    setTimeout(() => {
-      try {
-        addReview(restaurant.id, { 
-          id: `review-${Date.now()}`,
-          restaurantId: restaurant.id,
-          userId: user.id,
-          userName: user.name || 'Anonymous',
-          rating: reviewRating, 
-          text: reviewComment,
-          createdAt: new Date().toISOString()
-        });
-
-        setIsSubmittingReview(false);
-        setShowReviewModal(false);
-        setReviewRating(5);
-        setReviewComment("");
-
-        Alert.alert("Success", "Your review has been submitted. Thank you for your feedback!");
-      } catch (error) {
-        setIsSubmittingReview(false);
-        Alert.alert("Error", "Failed to submit review. Please try again.");
-      }
-    }, 1000);
-  };
+  // Calculate total items in cart
+  const totalCartItems = cart.reduce((sum, item) => sum + item.quantity, 0);
 
   return (
-    <View style={styles.container}>
-      <Animated.View style={[
-        styles.animatedHeader,
-        { opacity: headerOpacity }
-      ]}>
-        <View style={styles.headerContent}>
-          <TouchableOpacity
-            style={styles.headerBackButton}
-            onPress={() => router.back()}
-          >
-            <Ionicons name="chevron-back" size={24} color={colors.text} />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle} numberOfLines={1}>
-            {restaurant.name}
-          </Text>
-          <TouchableOpacity
-            style={styles.cartButton}
-            onPress={() => router.push("/cart")}
-          >
-            <Ionicons name="cart" size={24} color={colors.text} />
-            {cartItemCount > 0 && (
-              <View style={styles.cartBadge}>
-                <Text style={styles.cartBadgeText}>{cartItemCount}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        </View>
-      </Animated.View>
-
-      <Animated.ScrollView
+    <SafeAreaView style={styles.container}>
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
-        onScroll={Animated.event(
-          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
-          { useNativeDriver: true }
-        )}
-        scrollEventThrottle={16}
       >
-        <View style={styles.imageContainer}>
-          <Image
-            source={{ uri: restaurant.coverImageUrl || restaurant.imageUrl }}
-            style={styles.coverImage}
-            contentFit="cover"
-          />
-          <LinearGradient
-            colors={["rgba(0,0,0,0.7)", "transparent"]}
-            style={styles.gradient}
-          />
-          <TouchableOpacity
-            style={styles.backIconButton}
-            onPress={() => router.back()}
-          >
-            <Ionicons name="chevron-back" size={24} color={colors.white} />
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={styles.cartIconButton}
-            onPress={() => router.push("/cart")}
-          >
-            <Ionicons name="cart" size={24} color={colors.white} />
-            {cartItemCount > 0 && (
-              <View style={styles.cartBadge}>
-                <Text style={styles.cartBadgeText}>{cartItemCount}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        </View>
+        {/* Header Image */}
+        <Image
+          source={{ uri: restaurant.imageCover }}
+          style={styles.headerImage}
+          resizeMode="cover"
+        />
 
-        <View style={styles.content}>
-          <View style={styles.header}>
-            <Text style={styles.title}>{restaurant.name}</Text>
-            <View style={styles.ratingContainer}>
-              <Text style={styles.rating}>{restaurant.rating}</Text>
-              <Text style={styles.reviewCount}>{restaurant.reviewCount} reviews</Text>
+        {/* Back Button */}
+        <TouchableOpacity
+          style={styles.backButtonAbsolute}
+          onPress={handleBackPress}
+          accessibilityLabel="Go back to restaurant list"
+        >
+          <Text style={styles.backButtonText}>← Back</Text>
+        </TouchableOpacity>
+
+        {/* Cart Indicator */}
+        <TouchableOpacity
+          style={styles.cartIndicator}
+          onPress={() => Alert.alert('Cart', `You have ${totalCartItems} items in your cart.`)}
+          accessibilityLabel="View cart"
+        >
+          <FontAwesome name="shopping-cart" size={20} color={colors.white} />
+          {totalCartItems > 0 && (
+            <View style={styles.cartBadge}>
+              <Text style={styles.cartBadgeText}>{totalCartItems}</Text>
             </View>
-            {restaurant.categories && (
-              <View style={styles.categories}>
-                {restaurant.categories.map(category => (
-                  <Text key={category} style={styles.category}>{category}</Text>
-                ))}
-              </View>
-            )}
-            {restaurant.phone && (
-              <View style={styles.metaContainer}>
-                <View style={styles.metaItem}>
-                  <MaterialIcons name="phone" size={20} color={colors.gray[500]} />
-                  <Text style={styles.metaText}>{restaurant.phone}</Text>
-                </View>
-              </View>
-            )}
-            {restaurant.website && (
-              <View style={styles.metaContainer}>
-                <View style={styles.metaItem}>
-                  <Ionicons name="globe" size={20} color={colors.gray[500]} />
-                  <Text style={styles.metaText}>{restaurant.website}</Text>
-                </View>
-              </View>
-            )}
-            {restaurant.priceLevel && (
-              <View style={styles.priceLevelContainer}>
-                {renderPriceLevel()}
-              </View>
-            )}
-            {restaurant.openingHours && (
-              <View style={styles.hoursContainer}>
-                <Text style={styles.hoursTitle}>Opening Hours</Text>
-                <View style={styles.hoursList}>
-                  {formatOpeningHours()}
-                </View>
-              </View>
-            )}
-            {user && (
-              <TouchableOpacity
-                style={styles.writeReviewButton}
-                onPress={handleOpenReviewModal}
-              >
-                <Ionicons name="create" size={20} color={colors.primary} />
-                <Text style={styles.writeReviewText}>Write a Review</Text>
-              </TouchableOpacity>
-            )}
+          )}
+        </TouchableOpacity>
+
+        {/* Restaurant Info */}
+        <View style={styles.infoContainer}>
+          <Text style={styles.restaurantName}>{restaurant.name}</Text>
+          <Text style={styles.cuisineTypes}>
+            {restaurant.cuisineTypes.join(' • ')}
+          </Text>
+          <View style={styles.ratingContainer}>
+            <FontAwesome name="star" size={20} color={colors.warning} />
+            <Text style={styles.ratingText}>
+              {restaurant.ratingAverage.toFixed(1)} ({restaurant.ratingQuantity}{' '}
+              reviews)
+            </Text>
           </View>
 
-          <View style={styles.menuSection}>
-            <Text style={styles.sectionTitle}>Menu</Text>
-
-            <ScrollView
-              horizontal
-              showsHorizontalScrollIndicator={false}
-              contentContainerStyle={styles.categoriesScrollContent}
-            >
-              {menuCategories.map((category) => (
-                <CategoryPill
-                  key={category}
-                  title={category}
-                  selected={selectedCategory === category}
-                  onPress={() => setSelectedCategory(category)}
-                />
-              ))}
-            </ScrollView>
-
-            <View style={styles.menuItems}>
-              {filteredMenu && filteredMenu.map((item) => (
-                <MenuItemCard
-                  key={item.id}
-                  item={item}
-                  onPress={() => handleMenuItemPress(item.id)}
-                  onAddToCart={() => handleAddToCart(item.id)}
-                />
-              ))}
-            </View>
+          {/* Location */}
+          <View style={styles.detailRow}>
+            <FontAwesome name="map-marker" size={20} color={colors.primary} style={styles.icon} />
+            <Text style={styles.detailText}>{restaurant.location.address}</Text>
           </View>
-        </View>
-      </Animated.ScrollView>
 
-      {/* Review Modal */}
-      <Modal
-        visible={showReviewModal}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setShowReviewModal(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Write a Review</Text>
-            <Text style={styles.modalSubtitle}>{restaurant?.name}</Text>
-
-            <View style={styles.ratingSelector}>
-              <Text style={styles.ratingLabel}>Your Rating:</Text>
-              <View style={styles.starsContainer}>
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <TouchableOpacity
-                    key={star}
-                    onPress={() => setReviewRating(star)}
-                  >
-                    <Ionicons
-                      name="star"
-                      size={32}
-                      color={star <= reviewRating ? colors.secondary : colors.gray[500]}
-                    />
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-
-            <TextInput
-              style={styles.reviewInput}
-              placeholder="Write your review..."
-              multiline
-              numberOfLines={4}
-              value={reviewComment}
-              onChangeText={setReviewComment}
-            />
-
-            <TouchableOpacity
-              style={styles.submitButton}
-              onPress={handleSubmitReview}
-              disabled={isSubmittingReview || !reviewRating || !reviewComment.trim()}
-            >
-              <Text style={styles.submitButtonText}>
-                {isSubmittingReview ? 'Submitting...' : 'Submit Review'}
+          {/* Open Hours */}
+          <View style={styles.detailRow}>
+            <FontAwesome name="clock-o" size={20} color={colors.primary} style={styles.icon} />
+            <Text style={styles.detailText}>
+              {restaurant.openHours}{' '}
+              <Text style={styles.statusText}>
+                ({restaurant.isOpenNow ? 'Open Now' : 'Closed'})
               </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={styles.cancelButton}
-              onPress={() => setShowReviewModal(false)}
-            >
-              <Text style={styles.cancelButtonText}>Cancel</Text>
-            </TouchableOpacity>
+            </Text>
           </View>
+
+          {/* Delivery Info */}
+          <View style={styles.detailRow}>
+            <FontAwesome name="truck" size={20} color={colors.primary} style={styles.icon} />
+            <Text style={styles.detailText}>
+              {restaurant.isDeliveryAvailable
+                ? `Delivery available (${Math.ceil(restaurant.deliveryRadiusMeters / 100)}-${
+                    Math.ceil(restaurant.deliveryRadiusMeters / 100) + 15
+                  } min)`
+                : 'Delivery not available'}
+            </Text>
+          </View>
+
+          {/* Description */}
+          <View style={styles.descriptionContainer}>
+            <Text style={styles.sectionTitle}>About</Text>
+            <Text style={styles.descriptionText}>{restaurant.description}</Text>
+          </View>
+
+          {/* Additional Info */}
+          <View style={styles.descriptionContainer}>
+            <Text style={styles.sectionTitle}>Details</Text>
+            <Text style={styles.detailText}>
+              License: {restaurant.license}
+            </Text>
+            <Text style={styles.detailText}>
+              Delivery Radius: {(restaurant.deliveryRadiusMeters / 1000).toFixed(1)} km
+            </Text>
+            {typeof restaurant.managerId === 'object' && restaurant.managerId && (
+              <Text style={styles.detailText}>
+                Managed by: {restaurant.managerId.firstName}{' '}
+                {restaurant.managerId.lastName}
+              </Text>
+            )}
+          </View>
+
+          {/* Menus */}
+          <View style={styles.descriptionContainer}>
+            <Text style={styles.sectionTitle}>Menu</Text>
+            {isLoadingMenus ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="small" color={colors.primary} />
+                <Text style={styles.loadingText}>Loading menus...</Text>
+              </View>
+            ) : menuError ? (
+              <View style={styles.errorContainer}>
+                <Text style={styles.errorText}>{menuError}</Text>
+                <TouchableOpacity
+                  style={styles.retryButton}
+                  onPress={fetchMenus}
+                  accessibilityLabel="Retry loading menus"
+                >
+                  <Text style={styles.retryButtonText}>Retry</Text>
+                </TouchableOpacity>
+              </View>
+            ) : menus.length === 0 ? (
+              <Text style={styles.emptyText}>No menus available</Text>
+            ) : (
+              menus.map((menu) => (
+                <View key={menu._id} style={styles.menuContainer}>
+                  <Text style={styles.menuTitle}>{menu.menuType}</Text>
+                  {foodItems[menu._id]?.length > 0 ? (
+                    foodItems[menu._id].map((food) => (
+                      <View key={food._id} style={styles.foodItem}>
+                        <View style={styles.foodInfo}>
+                          <Text style={styles.foodName}>{food.foodName}</Text>
+                          {food.ingredients && (
+                            <Text style={styles.foodDescription}>
+                              {food.ingredients}
+                            </Text>
+                          )}
+                          <Text style={styles.foodPrice}>
+                            ${food.price.toFixed(2)}
+                          </Text>
+                          {food.status !== 'Available' && (
+                            <Text style={styles.foodNotAvailable}>
+                              Not available
+                            </Text>
+                          )}
+                        </View>
+                        {food.image && (
+                          <Image
+                            source={{ uri: food.image }}
+                            style={styles.foodImage}
+                            resizeMode="cover"
+                          />
+                        )}
+                        <View style={styles.quantityContainer}>
+                          {food.status === 'Available' && (
+                            <View style={styles.quantitySelector}>
+                              <TouchableOpacity
+                                style={styles.quantityButton}
+                                onPress={() => updateQuantity(food._id, -1)}
+                                accessibilityLabel={`Decrease quantity of ${food.foodName}`}
+                              >
+                                <Text style={styles.quantityButtonText}>-</Text>
+                              </TouchableOpacity>
+                              <Text style={styles.quantityText}>
+                                {quantitySelections[food._id] || 1}
+                              </Text>
+                              <TouchableOpacity
+                                style={styles.quantityButton}
+                                onPress={() => updateQuantity(food._id, 1)}
+                                accessibilityLabel={`Increase quantity of ${food.foodName}`}
+                              >
+                                <Text style={styles.quantityButtonText}>+</Text>
+                              </TouchableOpacity>
+                            </View>
+                          )}
+                          <TouchableOpacity
+                            style={[
+                              styles.addToCartButton,
+                              food.status !== 'Available' && styles.disabledButton,
+                            ]}
+                            onPress={() => food.status === 'Available' && addToCart(food)}
+                            disabled={food.status !== 'Available'}
+                            accessibilityLabel={`Add ${food.foodName} to cart`}
+                          >
+                            <Text style={styles.addToCartText}>Add to Cart</Text>
+                          </TouchableOpacity>
+                        </View>
+                      </View>
+                    ))
+                  ) : (
+                    <Text style={styles.emptyText}>No food items available</Text>
+                  )}
+                </View>
+              ))
+            )}
+          </View>
+
+          {/* Place Order Button */}
+          {cart.length > 0 && (
+            <TouchableOpacity
+              style={[
+                styles.placeOrderButton,
+                isPlacingOrder && styles.disabledButton,
+              ]}
+              onPress={placeOrder}
+              disabled={isPlacingOrder}
+              accessibilityLabel="Place order"
+            >
+              {isPlacingOrder ? (
+                <ActivityIndicator size="small" color={colors.white} />
+              ) : (
+                <Text style={styles.placeOrderText}>
+                  Place Order ({totalCartItems} items)
+                </Text>
+              )}
+            </TouchableOpacity>
+          )}
         </View>
-      </Modal>
-    </View>
+      </ScrollView>
+    </SafeAreaView>
   );
 }
-
-const { width } = Dimensions.get("window");
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
   },
-  content: {
+  scrollView: {
     flex: 1,
-    padding: 20,
   },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 24,
+  contentContainer: {
+    paddingBottom: 20,
   },
-  title: {
-    ...typography.heading1,
+  headerImage: {
+    width: '100%',
+    height: 200,
+  },
+  backButtonAbsolute: {
+    position: 'absolute',
+    top: 16,
+    left: 16,
+    backgroundColor: colors.white,
+    borderRadius: 8,
+    padding: 8,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
+  backButtonText: {
+    ...typography.body,
+    color: colors.primary,
+    fontWeight: '600',
+  },
+  cartIndicator: {
+    position: 'absolute',
+    top: 16,
+    right: 16,
+    backgroundColor: colors.primary,
+    borderRadius: 20,
+    padding: 8,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  cartBadge: {
+    backgroundColor: colors.warning,
+    borderRadius: 12,
+    minWidth: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: 8,
+  },
+  cartBadgeText: {
+    ...typography.small,
+    color: colors.white,
+    fontWeight: '600',
+  },
+  infoContainer: {
+    padding: 16,
+  },
+  restaurantName: {
+    ...typography.h4,
+    fontWeight: '700',
+    color: colors.text,
+    marginBottom: 8,
+  },
+  cuisineTypes: {
+    ...typography.body,
+    color: colors.lightText,
     marginBottom: 8,
   },
   ratingContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 8,
-    flexWrap: "wrap",
-  },
-  rating: {
-    ...typography.body,
-    fontWeight: "600",
-    marginLeft: 4,
-  },
-  reviewCount: {
-    ...typography.bodySmall,
-    color: colors.lightText,
-    marginLeft: 4,
-  },
-  categories: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    marginBottom: 12,
-  },
-  category: {
-    ...typography.bodySmall,
-    color: colors.lightText,
-    marginRight: 8,
-    marginBottom: 8,
-  },
-  metaContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  metaItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginRight: 16,
-  },
-  metaText: {
-    ...typography.bodySmall,
-    marginLeft: 4,
-  },
-  priceLevelContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 16,
-  },
-  hoursContainer: {
-    marginTop: 16,
-  },
-  hoursTitle: {
-    ...typography.heading4,
-    marginBottom: 12,
-  },
-  hoursList: {
-    padding: 8,
-    backgroundColor: colors.cardBackground,
-    borderRadius: 8,
-  },
-  writeReviewButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginLeft: 12,
-    paddingVertical: 4,
-    paddingHorizontal: 8,
-    backgroundColor: colors.primary + "15",
-    borderRadius: 4,
-  },
-  writeReviewText: {
-    ...typography.caption,
-    color: colors.primary,
-    marginLeft: 4,
-  },
-  menuSection: {
-    marginBottom: 24,
-  },
-  sectionTitle: {
-    ...typography.heading3,
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: 16,
   },
-  categoriesScrollContent: {
-    paddingBottom: 16,
-  },
-  menuItems: {
-    marginTop: 8,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.5)",
-    justifyContent: "flex-end",
-  },
-  modalContent: {
-    backgroundColor: colors.background,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
-    maxHeight: '80%',
-  },
-  modalTitle: {
-    ...typography.heading2,
-    marginBottom: 4,
-  },
-  modalSubtitle: {
+  ratingText: {
     ...typography.body,
-    color: colors.lightText,
-    marginBottom: 20,
-  },
-  ratingSelector: {
-    marginBottom: 20,
-  },
-  ratingLabel: {
-    ...typography.body,
-    fontWeight: "600",
-    marginBottom: 8,
-  },
-  starsContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-  },
-  reviewInput: {
-    flex: 1,
-    minHeight: 100,
-    padding: 16,
-    backgroundColor: colors.cardBackground,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: colors.border,
-  },
-  submitButton: {
-    flex: 1,
-    paddingVertical: 12,
+    color: colors.text,
     marginLeft: 8,
-    backgroundColor: colors.primary,
-    borderRadius: 8,
-    alignItems: "center",
   },
-  submitButtonText: {
-    ...typography.body,
-    color: colors.white,
-    fontWeight: "600",
+  detailRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
   },
-  cancelButton: {
-    flex: 1,
-    paddingVertical: 12,
+  icon: {
     marginRight: 8,
-    borderWidth: 1,
-    borderColor: colors.divider,
-    borderRadius: 8,
-    alignItems: "center",
   },
-  cancelButtonText: {
+  detailText: {
     ...typography.body,
     color: colors.text,
   },
-  animatedHeader: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
+  statusText: {
+    ...typography.body,
+    color: colors.primary,
+  },
+  descriptionContainer: {
+    marginTop: 16,
+  },
+  sectionTitle: {
+    ...typography.subtitle,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 8,
+  },
+  descriptionText: {
+    ...typography.body,
+    color: colors.lightText,
+    lineHeight: 24,
+  },
+  menuContainer: {
+    marginBottom: 16,
+  },
+  menuTitle: {
+    ...typography.subtitle,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 8,
+  },
+  foodItem: {
+    flexDirection: 'row',
     backgroundColor: colors.white,
-    zIndex: 10,
+    borderRadius: 8,
+    padding: 12,
+    marginBottom: 8,
     elevation: 2,
-    shadowColor: colors.black,
+    shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
+    alignItems: 'center',
   },
-  headerContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingTop: Platform.OS === "ios" ? 50 : 20,
-    paddingBottom: 10,
-    paddingHorizontal: 20,
-  },
-  headerBackButton: {
-    width: 40,
-    height: 40,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  headerTitle: {
-    ...typography.heading4,
+  foodInfo: {
     flex: 1,
-    textAlign: "center",
   },
-  imageContainer: {
-    height: 250,
-    position: "relative",
+  foodName: {
+    ...typography.body,
+    fontWeight: '600',
+    color: colors.text,
+    marginBottom: 4,
   },
-  coverImage: {
-    width: "100%",
-    height: "100%",
+  foodDescription: {
+    ...typography.small,
+    color: colors.lightText,
+    marginBottom: 4,
   },
-  gradient: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    height: 100,
+  foodPrice: {
+    ...typography.body,
+    color: colors.primary,
+    fontWeight: '500',
   },
-  backIconButton: {
-    position: "absolute",
-    top: Platform.OS === "ios" ? 50 : 20,
-    left: 20,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "rgba(0,0,0,0.3)",
-    justifyContent: "center",
-    alignItems: "center",
+  foodNotAvailable: {
+    ...typography.small,
+    color: colors.error,
+    marginTop: 4,
   },
-  cartIconButton: {
-    position: "absolute",
-    top: Platform.OS === "ios" ? 50 : 20,
-    right: 20,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "rgba(0,0,0,0.3)",
-    justifyContent: "center",
-    alignItems: "center",
+  foodImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    marginLeft: 12,
   },
-  cartButton: {
-    width: 40,
-    height: 40,
-    justifyContent: "center",
-    alignItems: "center",
+  quantityContainer: {
+    flexDirection: 'column',
+    alignItems: 'flex-end',
+    justifyContent: 'center',
+    marginLeft: 12,
   },
-  cartBadge: {
-    position: "absolute",
-    top: 0,
-    right: 0,
+  quantitySelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  quantityButton: {
+    backgroundColor: colors.lightGray,
+    borderRadius: 4,
+    width: 32,
+    height: 32,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  quantityButtonText: {
+    ...typography.body,
+    color: colors.text,
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  quantityText: {
+    ...typography.body,
+    color: colors.text,
+    marginHorizontal: 12,
+    fontWeight: '600',
+  },
+  addToCartButton: {
     backgroundColor: colors.primary,
-    borderRadius: 10,
-    minWidth: 20,
-    height: 20,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 4,
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
   },
-  cartBadgeText: {
+  disabledButton: {
+    backgroundColor: colors.lightGray,
+    opacity: 0.6,
+  },
+  addToCartText: {
+    ...typography.button,
     color: colors.white,
-    fontSize: 10,
-    fontWeight: 'bold',
+    fontSize: 14,
+  },
+  placeOrderButton: {
+    backgroundColor: colors.primary,
+    borderRadius: 8,
+    paddingVertical: 12,
+    marginHorizontal: 16,
+    marginTop: 16,
+    alignItems: 'center',
+  },
+  placeOrderText: {
+    ...typography.button,
+    color: colors.white,
+    fontSize: 16,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: colors.background,
   },
   loadingText: {
     ...typography.body,
-    marginTop: 16,
-    color: colors.text,
+    color: colors.lightText,
+    marginTop: 8,
   },
-  notFound: {
+  errorContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    padding: 20,
-    backgroundColor: colors.background,
+    padding: 16,
   },
-  backButton: {
-    marginTop: 20,
-    padding: 12,
+  errorText: {
+    ...typography.body,
+    color: colors.error,
+    marginBottom: 16,
+  },
+  retryButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
     backgroundColor: colors.primary,
     borderRadius: 8,
+    marginBottom: 16,
   },
-  backButtonText: {
-    ...typography.body,
+  retryButtonText: {
+    ...typography.button,
     color: colors.white,
-    fontWeight: '600',
   },
-  hoursText: {
-    fontSize: 14,
-    color: colors.text,
-    marginBottom: 4,
+  backButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    backgroundColor: colors.lightGray,
+    borderRadius: 8,
   },
-  dayText: {
+  emptyText: {
     ...typography.body,
-    fontWeight: "500",
-    width: 100,
+    color: colors.lightText,
+    marginTop: 8,
   },
-
-  // Removed duplicate style definitions
 });

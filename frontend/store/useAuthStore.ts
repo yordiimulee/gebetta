@@ -39,6 +39,11 @@ interface AuthState {
   logout: () => Promise<void>;
   initializeAuth: () => Promise<void>;
   clearError: () => void;
+  debugAuthState: () => Promise<{
+    hasUser: boolean;
+    hasToken: boolean;
+    error?: any;
+  }>;
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
@@ -90,6 +95,41 @@ export const useAuthStore = create<AuthState>((set) => ({
   },
 
   clearError: () => set({ error: null }),
+  
+  // Debug function to log stored auth data
+  debugAuthState: async () => {
+    try {
+      const [userJson, token] = await Promise.all([
+        SecureStore.getItemAsync('userInfo'),
+        SecureStore.getItemAsync('userToken')
+      ]);
+      
+      console.log('Debug Auth State:', {
+        hasUserJson: !!userJson,
+        hasToken: !!token,
+        userJson: userJson ? 'exists' : 'null',
+        token: token ? 'exists' : 'null'
+      });
+      
+      if (userJson) {
+        try {
+          const user = JSON.parse(userJson);
+          console.log('Stored User Data:', {
+            id: user?._id,
+            email: user?.email,
+            role: user?.role
+          });
+        } catch (e) {
+          console.error('Error parsing stored user data:', e);
+        }
+      }
+      
+      return { hasUser: !!userJson, hasToken: !!token };
+    } catch (error) {
+      console.error('Error debugging auth state:', error);
+      return { hasUser: false, hasToken: false, error };
+    }
+  },
 }));
 
 // Initialize auth state when the app starts

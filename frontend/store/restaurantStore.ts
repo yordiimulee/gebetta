@@ -116,8 +116,10 @@ export const useRestaurantStore = create<RestaurantState>()(
           const now = new Date().toISOString();
           const newRestaurant: Restaurant = {
             id: uuidv4(),
+            _id: uuidv4(), // MongoDB identifier
             ownerId: restaurantData.ownerId || 'mock-owner-id',
             name: restaurantData.name || 'New Restaurant',
+            slug: restaurantData.name ? restaurantData.name.toLowerCase().replace(/\s+/g, '-') : 'new-restaurant',
             createdAt: now,
             updatedAt: now,
             description: restaurantData.description || 'A new Ethiopian restaurant',
@@ -138,6 +140,16 @@ export const useRestaurantStore = create<RestaurantState>()(
             },
             phone: '+251 11 000 0000',
             website: '',
+            deliveryRadiusMeters: 5000, // 5km default delivery radius
+            license: 'mock-license-123',
+            cuisineTypes: ['Ethiopian'],
+            imageCover: 'https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?q=80&w=500',
+            ratingAverage: 0,
+            ratingQuantity: 0,
+            openHours: '9:00 AM - 10:00 PM',
+            isDeliveryAvailable: true,
+            isOpenNow: true,
+            active: true,
             openingHours: {
               'Monday': { open: '9:00 AM', close: '10:00 PM' },
               'Tuesday': { open: '9:00 AM', close: '10:00 PM' },

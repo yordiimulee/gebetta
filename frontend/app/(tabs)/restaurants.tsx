@@ -124,23 +124,26 @@ const parseOpeningHours = (openHours: string): OpeningHours => {
   };
 };
 
-// Define the Restaurant interface based on backend schema
-interface Restaurant {
+// Import the main Restaurant interface
+import { Restaurant as AppRestaurant } from "@/types/restaurant";
+
+// Define the API response format for restaurant location
+interface ApiRestaurantLocation {
+  type: string;
+  coordinates: [number, number]; // [longitude, latitude]
+  address: string;
+}
+
+// Define the API response format for restaurant
+interface ApiRestaurant {
   _id: string;
   name: string;
   slug: string;
-  location: {
-    type: string;
-    coordinates: [number, number]; // [longitude, latitude]
-    address: string;
-  };
-  // For display purposes in the card
-  latitude?: number;
-  longitude?: number;
+  location: ApiRestaurantLocation;
   description: string;
   deliveryRadiusMeters: number;
   license: string;
-  managerId: string;
+  managerId: string | { _id: string } | string;
   cuisineTypes: string[];
   imageCover: string;
   ratingAverage: number;
@@ -155,6 +158,60 @@ interface Restaurant {
   shortDescription?: string;
   reviewCount?: number;
 }
+
+// Convert API restaurant to app's Restaurant type
+function toAppRestaurant(apiRestaurant: ApiRestaurant): AppRestaurant {
+  const location = apiRestaurant.location;
+  const coordinates = location?.coordinates || [0, 0];
+  
+  return {
+    id: apiRestaurant._id,
+    _id: apiRestaurant._id,
+    name: apiRestaurant.name,
+    slug: apiRestaurant.slug || apiRestaurant.name.toLowerCase().replace(/\s+/g, '-'),
+    ownerId: typeof apiRestaurant.managerId === 'object' 
+      ? (apiRestaurant.managerId?._id || '') 
+      : (apiRestaurant.managerId || ''),
+    imageUrl: apiRestaurant.imageCover || '',
+    imageCover: apiRestaurant.imageCover || '',
+    address: location?.address || 'Address not available',
+    cuisine: apiRestaurant.cuisineTypes?.[0] || 'Other',
+    cuisineTypes: apiRestaurant.cuisineTypes || [],
+    priceLevel: '$$', // Default price level
+    rating: apiRestaurant.ratingAverage || 0,
+    ratingAverage: apiRestaurant.ratingAverage || 0,
+    ratingQuantity: apiRestaurant.ratingQuantity || 0,
+    isOpen: !!apiRestaurant.isOpenNow,
+    isOpenNow: !!apiRestaurant.isOpenNow,
+    isDeliveryAvailable: !!apiRestaurant.isDeliveryAvailable,
+    active: !!apiRestaurant.active,
+    description: apiRestaurant.description || '',
+    deliveryRadiusMeters: apiRestaurant.deliveryRadiusMeters || 5000,
+    license: apiRestaurant.license || 'N/A',
+    managerId: typeof apiRestaurant.managerId === 'object' 
+      ? (apiRestaurant.managerId?._id || '') 
+      : (apiRestaurant.managerId || ''),
+    openHours: apiRestaurant.openHours || '9:00 AM - 10:00 PM',
+    reviews: apiRestaurant.reviews || [],
+    reviewCount: apiRestaurant.reviewCount || 0,
+    shortDescription: apiRestaurant.shortDescription || 
+      (apiRestaurant.description ? 
+        apiRestaurant.description.substring(0, 100) + 
+        (apiRestaurant.description.length > 100 ? '...' : '') 
+        : ''),
+    deliveryFee: 0,
+    estimatedDeliveryTime: '30-45 min',
+    createdAt: apiRestaurant.createdAt || new Date().toISOString(),
+    updatedAt: apiRestaurant.updatedAt || new Date().toISOString(),
+    location: {
+      latitude: coordinates[1],
+      longitude: coordinates[0]
+    }
+  };
+}
+
+// Alias for backward compatibility
+type Restaurant = AppRestaurant;
 
 type PriceRange = 'Under 100 ETB' | '100-300 ETB' | '300-500 ETB' | '500+ ETB';
 
@@ -629,55 +686,22 @@ export default function RestaurantsScreen() {
           contentContainerStyle={styles.restaurantsListContent}
           showsVerticalScrollIndicator={false}
         >
-          {filteredRestaurants.map(restaurant => (
-            <RestaurantCard
-              key={restaurant._id}
-              restaurant={{
-                id: restaurant._id, // Map _id to id
-                _id: restaurant._id,
-                name: restaurant.name,
-                slug: restaurant.slug,
-                // Required properties
-                imageUrl: restaurant.imageCover, // Using imageCover as imageUrl
-                ownerId: restaurant.managerId, // Using managerId as ownerId
-                deliveryRadiusMeters: restaurant.deliveryRadiusMeters,
-                // Location data
-                ...(restaurant.location?.coordinates && {
-                  location: {
-                    latitude: restaurant.location.coordinates[1],
-                    longitude: restaurant.location.coordinates[0],
-                  },
-                }),
-                address: restaurant.location?.address || '',
-                description: restaurant.description || '',
-                // Required properties from the interface
-                cuisine: restaurant.cuisineTypes[0] || 'Other',
-                priceLevel: `${Math.round(restaurant.ratingAverage * 100)}-${Math.round(restaurant.ratingAverage * 100 + 200)} ETB`,
-                // Restaurant data
-                license: restaurant.license,
-                managerId: restaurant.managerId,
-                cuisineTypes: restaurant.cuisineTypes,
-                imageCover: restaurant.imageCover,
-                ratingAverage: restaurant.ratingAverage,
-                ratingQuantity: restaurant.ratingQuantity,
-                openHours: restaurant.openHours,
-                isDeliveryAvailable: restaurant.isDeliveryAvailable,
-                isOpenNow: restaurant.isOpenNow,
-                active: restaurant.active,
-                createdAt: restaurant.createdAt,
-                updatedAt: restaurant.updatedAt,
-                reviews: restaurant.reviews || [],
-                // Additional computed properties for display
-                shortDescription: restaurant.description ? 
-                  restaurant.description.substring(0, 100) + (restaurant.description.length > 100 ? '...' : '') : '',
-                reviewCount: restaurant.ratingQuantity,
-                // Additional display properties
-                deliveryTime: `${Math.round(restaurant.deliveryRadiusMeters / 100)} min`,
-                distance: `${(restaurant.deliveryRadiusMeters / 1000).toFixed(1)} km`,
-              }}
-              onPress={() => handleRestaurantPress(restaurant._id)}
-            />
-          ))}
+          {filteredRestaurants.map((restaurant: any) => {
+            // Calculate delivery time based on distance (1 min per 100m)
+            const deliveryTime = Math.ceil(restaurant.deliveryRadiusMeters / 100);
+            const estimatedDeliveryTime = `${deliveryTime}-${deliveryTime + 15} min`;
+            
+            // Format price level based on rating average
+            const restaurantData = toAppRestaurant(restaurant);
+            
+            return (
+              <RestaurantCard
+                key={restaurant._id}
+                restaurant={restaurantData}
+                onPress={() => router.push(`/restaurant/${restaurant._id}`)}
+              />
+            );
+          })}
         </ScrollView>
       )}
 

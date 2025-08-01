@@ -8,18 +8,17 @@ import { useRestaurantStore } from "@/store/restaurantStore";
 import { MenuItem } from "@/types/restaurant";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
-import {
-  AlertCircle,
-  Camera as CameraIcon,
-  Check,
-  ChevronDown,
-  DollarSign as DollarSignIcon,
-  Edit2,
-  Plus as PlusIcon,
-  Search,
-  Trash2 as TrashIcon,
-  X
-} from "lucide-react-native";
+import { FontAwesome, MaterialIcons, MaterialCommunityIcons } from "@expo/vector-icons";
+const CameraIcon = MaterialCommunityIcons;
+const DollarSignIcon = FontAwesome;
+const PlusIcon = MaterialIcons;
+const TrashIcon = MaterialIcons;
+const AlertCircle = MaterialIcons;
+const Check = MaterialIcons;
+const ChevronDown = MaterialIcons;
+const Edit2 = MaterialIcons;
+const Search = MaterialIcons;
+const X = MaterialIcons;
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -314,7 +313,7 @@ export default function MenuScreen() {
             style={[styles.menuItemActionButton, styles.editButton]}
             onPress={() => handleEditItem(item)}
           >
-            <Edit2 size={16} color={colors.primary} />
+            <MaterialIcons name="edit" size={16} color={colors.primary} />
             <Text style={styles.editButtonText}>Edit</Text>
           </TouchableOpacity>
           
@@ -322,7 +321,7 @@ export default function MenuScreen() {
             style={[styles.menuItemActionButton, styles.deleteButton]}
             onPress={() => handleDeleteItem(item)}
           >
-            <TrashIcon size={16} color={colors.error} />
+            <MaterialIcons name="delete" size={16} color={colors.error} />
             <Text style={styles.deleteButtonText}>Delete</Text>
           </TouchableOpacity>
         </View>
@@ -338,14 +337,14 @@ export default function MenuScreen() {
           style={styles.addButton}
           onPress={handleAddItem}
         >
-          <PlusIcon size={20} color={colors.white} />
+          <MaterialIcons name="add" size={20} color={colors.white} />
           <Text style={styles.addButtonText}>Add Item</Text>
         </TouchableOpacity>
       </View>
 
       <View style={styles.searchContainer}>
         <View style={styles.searchInputContainer}>
-          <Search size={20} color={colors.lightText} style={styles.searchIcon} />
+          <MaterialIcons name="search" size={20} color={colors.lightText} style={styles.searchIcon} />
           <TextInput
             style={styles.searchInput}
             placeholder="Search menu items..."
@@ -358,7 +357,7 @@ export default function MenuScreen() {
               style={styles.clearButton}
               onPress={() => setSearchQuery("")}
             >
-              <X size={16} color={colors.lightText} />
+              <MaterialIcons name="close" size={16} color={colors.lightText} />
             </TouchableOpacity>
           )}
         </View>
@@ -369,7 +368,7 @@ export default function MenuScreen() {
             onPress={() => setShowCategoryDropdown(!showCategoryDropdown)}
           >
             <Text style={styles.categoryFilterText}>{selectedCategory}</Text>
-            <ChevronDown size={16} color={colors.text} />
+            <MaterialIcons name="keyboard-arrow-down" size={16} color={colors.text} />
           </TouchableOpacity>
           
           {showCategoryDropdown && (
@@ -395,7 +394,7 @@ export default function MenuScreen() {
                     {category}
                   </Text>
                   {selectedCategory === category && (
-                    <Check size={16} color={colors.primary} />
+                    <MaterialIcons name="check" size={16} color={colors.primary} />
                   )}
                 </TouchableOpacity>
               ))}

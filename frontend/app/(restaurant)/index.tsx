@@ -4,7 +4,7 @@ import { analyticsAPI, orderAPI } from "@/lib/api";
 import { useAuthStore } from "@/store/authStore";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
-import { AlertTriangle, BarChart3, ChevronRight, Settings, ShoppingBag, Users, Utensils } from "lucide-react-native";
+import { MaterialIcons, MaterialCommunityIcons, Feather } from '@expo/vector-icons';
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
@@ -228,7 +228,7 @@ export default function RestaurantDashboard() {
     {
       id: "menu",
       title: "Menu Management",
-      icon: <Utensils size={24} color={colors.text} />,
+      icon: <MaterialCommunityIcons name="silverware-fork-knife" size={24} color={colors.text} />,
       description: "Add, edit or remove menu items",
       route: "/menu",
       permission: ["owner", "manager"],
@@ -236,7 +236,7 @@ export default function RestaurantDashboard() {
     {
       id: "recipes",
       title: "Recipe Management",
-      icon: <Utensils size={24} color={colors.text} />,
+      icon: <MaterialCommunityIcons name="silverware-fork-knife" size={24} color={colors.text} />,
       description: "Manage your restaurant recipes",
       route: "/recipes",
       permission: ["owner", "manager"],
@@ -244,7 +244,7 @@ export default function RestaurantDashboard() {
     {
       id: "orders",
       title: "Orders",
-      icon: <ShoppingBag size={24} color={colors.text} />,
+      icon: <MaterialIcons name="shopping-bag" size={24} color={colors.text} />,
       description: "View and manage customer orders",
       route: "/orders",
       permission: ["owner", "manager"],
@@ -252,7 +252,7 @@ export default function RestaurantDashboard() {
     {
       id: "customers",
       title: "Customers",
-      icon: <Users size={24} color={colors.text} />,
+      icon: <MaterialIcons name="people" size={24} color={colors.text} />,
       description: "View customer information",
       route: "/customers",
       permission: ["owner"],
@@ -260,7 +260,7 @@ export default function RestaurantDashboard() {
     {
       id: "analytics",
       title: "Analytics",
-      icon: <BarChart3 size={24} color={colors.text} />,
+      icon: <MaterialIcons name="bar-chart" size={24} color={colors.text} />,
       description: "View sales and performance metrics",
       route: "/analytics",
       permission: ["owner"],
@@ -268,7 +268,7 @@ export default function RestaurantDashboard() {
     {
       id: "settings",
       title: "Restaurant Settings",
-      icon: <Settings size={24} color={colors.text} />,
+      icon: <Feather name="settings" size={24} color={colors.text} />,
       description: "Manage restaurant profile and settings",
       route: "/settings",
       permission: ["owner"],
@@ -408,7 +408,7 @@ export default function RestaurantDashboard() {
             ))
           ) : (
             <View style={styles.emptyOrdersContainer}>
-              <AlertTriangle size={24} color={colors.lightText} />
+              <MaterialIcons name="warning" size={24} color={colors.lightText} />
               <Text style={styles.emptyOrdersText}>No recent orders</Text>
             </View>
           )}
@@ -431,7 +431,7 @@ export default function RestaurantDashboard() {
                   </Text>
                 </View>
               </View>
-              <ChevronRight size={20} color={colors.lightText} />
+              <MaterialIcons name="chevron-right" size={24} color={colors.lightText} />
             </TouchableOpacity>
           ))}
         </View>

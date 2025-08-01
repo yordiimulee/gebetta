@@ -13,7 +13,6 @@ export default function WelcomeScreen() {
   const isTablet = width > 768;
 
   const handleGetStarted = () => {
-    // router.push("/login");
     router.push("/(tabs)");
   };
 
