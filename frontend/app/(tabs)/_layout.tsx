@@ -43,49 +43,49 @@ export default function TabsLayout() {
           name="index"
           options={{
             title: "Home",
-            tabBarIcon: ({ color }) => <FontAwesome5 name="home" size={20} color={color} />,
+            tabBarIcon: ({ color }) => <FontAwesome5 name="home" size={24} color={color} />,
           }}
         />
         <Tabs.Screen
           name="search"
           options={{
             title: "Search",
-            tabBarIcon: ({ color }) => <FontAwesome5 name="search" size={20} color={color} />,
+            tabBarIcon: ({ color }) => <FontAwesome5 name="search" size={24} color={color} />,
           }}
         />
         <Tabs.Screen
           name="restaurants"
           options={{
             title: "Restaurants",
-            tabBarIcon: ({ color }) => <FontAwesome5 name="utensils" size={20} color={color} />,
+            tabBarIcon: ({ color }) => <FontAwesome5 name="utensils" size={24} color={color} />,
           }}
         />
         <Tabs.Screen
           name="create"
           options={{
             title: "Create",
-            tabBarIcon: ({ color }) => <FontAwesome5 name="plus-circle" size={20} color={color} />,
+            tabBarIcon: ({ color }) => <FontAwesome5 name="plus-circle" size={24} color={color} />,
           }}
         />
         <Tabs.Screen
           name="cart"
           options={{
             title: "Cart",
-            tabBarIcon: ({ color }) => <FontAwesome5 name="shopping-bag" size={20} color={color} />,
+            tabBarIcon: ({ color }) => <FontAwesome5 name="shopping-bag" size={24} color={color} />,
           }}
         />
         <Tabs.Screen
           name="chatbot"
           options={{
             title: "Chat",
-            tabBarIcon: ({ color }) => <FontAwesome5 name="comment-alt" size={20} color={color} />,
+            tabBarIcon: ({ color }) => <FontAwesome5 name="comment-dots" size={24} color={color} />,
           }}
         />
         <Tabs.Screen
           name="profile"
           options={{
             title: "Profile",
-            tabBarIcon: ({ color }) => <FontAwesome5 name="user" size={20} color={color} />,
+            tabBarIcon: ({ color }) => <FontAwesome5 name="user-circle" size={24} color={color} />,
           }}
         />
       </Tabs>

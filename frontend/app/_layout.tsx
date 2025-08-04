@@ -1,12 +1,19 @@
 import { useAuthStore } from "@/store/useAuthStore";
 import { Stack, useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
-import { ActivityIndicator, View } from "react-native";
+import * as Font from 'expo-font';
+import { useCallback, useEffect, useState } from 'react';
+import { ActivityIndicator, View } from 'react-native';
+import * as SplashScreen from 'expo-splash-screen';
 import colors from "@/constants/colors";
+import { FontAwesome5 } from '@expo/vector-icons';
+
+// Keep the splash screen visible while we fetch resources
+SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
   const { isAuthenticated, isLoading, initializeAuth, user } = useAuthStore();
   const [isInitialized, setIsInitialized] = useState(false);
+  const [appIsReady, setAppIsReady] = useState(false);
   const router = useRouter();
 
   // Debug log auth state changes
@@ -19,27 +26,49 @@ export default function RootLayout() {
     });
   }, [isAuthenticated, isLoading, user, isInitialized]);
 
-  // Initialize auth state on mount
+  // Load fonts and initialize auth
   useEffect(() => {
-    console.log('RootLayout: Initializing auth...');
-    const initAuth = async () => {
+    async function prepare() {
       try {
+        // Load fonts
+        await Font.loadAsync({
+          ...FontAwesome5.font,
+        });
+
+        // Initialize auth
+        console.log('RootLayout: Initializing auth...');
         await initializeAuth();
         console.log('RootLayout: Auth initialization complete');
       } catch (error) {
-        console.error('RootLayout: Error initializing auth:', error);
+        console.error('RootLayout: Error during initialization:', error);
       } finally {
+        // Tell the application to render
         setIsInitialized(true);
+        setAppIsReady(true);
+        await SplashScreen.hideAsync();
       }
-    };
-    
-    initAuth();
+    }
+
+    prepare();
   }, [initializeAuth]);
+
+  const onLayoutRootView = useCallback(async () => {
+    if (appIsReady) {
+      await SplashScreen.hideAsync();
+    }
+  }, [appIsReady]);
+
+  if (!appIsReady) {
+    return null;
+  }
 
   // Show loading indicator while initializing
   if (!isInitialized || isLoading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}>
+      <View 
+        style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background }}
+        onLayout={onLayoutRootView}
+      >
         <ActivityIndicator size="large" color={colors.primary} />
       </View>
     );
