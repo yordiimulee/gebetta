@@ -10,6 +10,7 @@ import {
   ActivityIndicator,
   TouchableOpacity,
   Alert,
+  RefreshControl,
 } from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
@@ -99,9 +100,10 @@ export default function RestaurantDetailScreen() {
   const [isPlacingOrder, setIsPlacingOrder] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [menuError, setMenuError] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   const baseUrl = 'https://gebeta-delivery1.onrender.com';
-  const JWT_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY4N2EyNDE5ZmM2Y2IyYzk5MzIxMjQ3NSIsImlhdCI6MTc1MzA4MDI3NSwiZXhwIjoxNzYwODU2Mjc1fQ.vRs1UMH4h5L2WBZtJPOpfbJkYAAjXsIVHqYZ3_fIZAc';
+  const JWT_TOKEN = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY4N2EyNDE5ZmM2Y2IyYzk5MzIxMjQ3NSIsImlhdCI6MTc1MzA4MDI3NSwiZXhwIjoxNzYwODU1Njc1fQ.vRs1UMH4h5L2WBZtJPOpfbJkYAAjXsIVHqYZ3_fIZAc';
 
   // Fetch restaurant details
   const fetchRestaurant = async () => {
@@ -151,6 +153,18 @@ export default function RestaurantDetailScreen() {
       setFoodItems({});
     } finally {
       setIsLoadingMenus(false);
+    }
+  };
+
+  // Handle refresh
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    try {
+      await Promise.all([fetchRestaurant(), fetchMenus()]);
+    } catch (error) {
+      console.error('Error refreshing data:', error);
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
@@ -298,6 +312,14 @@ export default function RestaurantDetailScreen() {
         style={styles.scrollView}
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={handleRefresh}
+            colors={[colors.primary]}
+            tintColor={colors.primary}
+          />
+        }
       >
         {/* Header Image */}
         <Image

@@ -11,6 +11,7 @@ const colors = {
   
   // Text colors
   text: "#000000",
+  textSecondary: "#666666",
   lightText: "#666666",
   placeholderText: "#757575", // Darker gray for better visibility
   
@@ -18,6 +19,7 @@ const colors = {
   success: "#888888",
   error: "#555555",
   warning: "#777777",
+  danger: "#555555",
   info: "#999999",
   
   // Common colors

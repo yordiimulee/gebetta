@@ -5,21 +5,53 @@ import { z } from 'zod';
 import type { AddressFormData, AddressFormProps } from '../../../../types/address-form';
 import { Picker } from '@react-native-picker/picker';
 import type { AddressType } from '../../../../types/address';
+import colors from '@/constants/colors';
 
 interface Styles {
   container: ViewStyle;
   title: TextStyle;
   input: TextStyle;
-  button: ViewStyle;
-  buttonText: TextStyle;
-  picker: TextStyle;
-  pickerContainer: ViewStyle;
-  pickerLabel: TextStyle;
-  saveButton: ViewStyle;
-  saveButtonText: TextStyle;
+  button: {
+    backgroundColor: string;
+    padding: number;
+    borderRadius: number;
+    alignItems: 'center';
+    marginTop: number;
+  };
+  buttonText: {
+    color: string;
+    fontWeight: 'bold';
+    fontSize: number;
+  };
+  picker: {
+    borderWidth: number;
+    borderColor: string;
+    borderRadius: number;
+    padding: number;
+    marginBottom: number;
+    fontSize: number;
+  };
+  pickerContainer: {
+    marginVertical: number;
+  };
+  pickerLabel: {
+    textAlign: 'left';
+    padding: number;
+    borderRadius: number;
+  };
+  saveButton: {
+    backgroundColor: string;
+    padding: number;
+    borderRadius: number;
+    alignItems: 'center';
+    marginTop: number;
+  };
+  saveButtonText: {
+    color: string;
+    fontWeight: 'bold';
+    fontSize: number;
+  };
 }
-
-
 
 export function AddressForm({ onSubmit, initialData }: AddressFormProps) {
   const addressSchema = z.object({
@@ -125,13 +157,13 @@ export function AddressForm({ onSubmit, initialData }: AddressFormProps) {
   );
 }
 
-const styles: Styles = StyleSheet.create({
+const styles = StyleSheet.create({
   container: {
     padding: 20,
   },
   title: {
     fontSize: 24,
-    fontWeight: 'bold' as 'bold',
+    fontWeight: 'bold',
     marginBottom: 20,
   },
   input: {
@@ -143,15 +175,15 @@ const styles: Styles = StyleSheet.create({
     fontSize: 16,
   },
   button: {
-    backgroundColor: '#007AFF',
+    backgroundColor: colors.primary,
     padding: 15,
     borderRadius: 8,
-    alignItems: 'center' as 'center',
+    alignItems: 'center',
     marginTop: 20,
   },
   buttonText: {
     color: 'white',
-    fontWeight: 'bold' as 'bold',
+    fontWeight: 'bold',
     fontSize: 16,
   },
   picker: {
@@ -166,20 +198,20 @@ const styles: Styles = StyleSheet.create({
     marginVertical: 10,
   },
   pickerLabel: {
-    textAlign: 'left' as 'left',
+    textAlign: 'left',
     padding: 15,
     borderRadius: 8,
   },
   saveButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: colors.primary,
     padding: 15,
     borderRadius: 8,
-    alignItems: 'center' as 'center',
+    alignItems: 'center',
     marginTop: 20,
   },
   saveButtonText: {
     color: 'white',
-    fontWeight: 'bold' as 'bold',
+    fontWeight: 'bold',
     fontSize: 16,
   },
 });

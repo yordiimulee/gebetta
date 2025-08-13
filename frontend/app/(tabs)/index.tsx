@@ -3,13 +3,15 @@ import RecipeCard from "@/components/RecipeCard";
 import colors from "@/constants/colors";
 import typography from "@/constants/typography";
 import { popularTags } from "@/mocks/recipes";
-import { useAuthStore } from "@/store/authStore";
+import { useAuthStore } from "@/store/useAuthStore";
 import { useRecipeStore } from "@/store/recipeStore";
 import { useRestaurantStore } from "@/store/restaurantStore";
+import { Recipe } from "@/types/recipe";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
 import { ChevronRight, MapPin, Clock } from "lucide-react-native";
-import React, { useState } from "react";
+import React, { useState, useCallback, useEffect } from "react";
+import * as Location from 'expo-location';
 // statusBar
 import { StatusBar } from "expo-status-bar";
 import {
@@ -29,12 +31,35 @@ export default function HomeScreen() {
   const { width } = Dimensions.get("window");
   const isTablet = width > 768;
   
-  const { user } = useAuthStore();
+  const { user, setUser } = useAuthStore();
   const { recipes, setSelectedTag, isLoading: recipesLoading } = useRecipeStore();
   const { restaurants, isLoading: restaurantsLoading } = useRestaurantStore();
   
   const [refreshing, setRefreshing] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [featuredRecipes, setFeaturedRecipes] = useState<Recipe[]>([]);
+  
+  // Get random featured recipes
+  const getRandomRecipes = useCallback((count: number) => {
+    const shuffled = [...recipes].sort(() => 0.5 - Math.random());
+    return shuffled.slice(0, count);
+  }, [recipes]);
+
+  // Update featured recipes when recipes change and set up rotation
+  useEffect(() => {
+    if (recipes.length === 0) return;
+    
+    // Set initial featured recipes
+    setFeaturedRecipes(getRandomRecipes(1));
+    
+    // Set up automatic rotation every 30 seconds
+    const rotationInterval = setInterval(() => {
+      setFeaturedRecipes(getRandomRecipes(1));
+    }, 30000); // 30 seconds
+    
+    // Clean up interval on component unmount
+    return () => clearInterval(rotationInterval);
+  }, [recipes, getRandomRecipes]);
   
   const featuredRecipe = recipes[0];
   const popularRecipes = recipes.slice(1, 5);
@@ -97,20 +122,152 @@ export default function HomeScreen() {
     >
       <View style={styles.header}>
         <View>
-          <Text style={styles.greeting}>Hello, {user?.name?.split(" ")[0] || "Guest"}</Text>
-          <Text style={styles.subtitle}>What would you like to explore today?</Text>
+          <Text style={styles.greeting}>
+            Hello, {user?.firstName ? user.firstName : "Guest"}
+          </Text>
+          <Text style={styles.subtitle}>
+            {user?.addresses?.find(addr => addr.isDefault)?.Name || "What would you like to explore today?"}
+          </Text>
+          <TouchableOpacity
+            onPress={async () => {
+              try {
+                console.log('Requesting location permissions...');
+                const { status } = await Location.requestForegroundPermissionsAsync();
+                console.log('Location permission status:', status);
+                
+                if (status === "granted") {
+                  console.log('Getting current position...');
+                  const location = await Location.getCurrentPositionAsync({});
+                  console.log('Got location:', location);
+                  
+                  console.log('Reverse geocoding...');
+                  const geocode = await Location.reverseGeocodeAsync(location.coords);
+                  console.log('Geocode results:', geocode);
+                  
+                  if (geocode && geocode.length > 0) {
+                    const { city, region } = geocode[0];
+                    const locationString = `${city || ''}${city && region ? ', ' : ''}${region || ''}`.trim();
+                    console.log('Formatted location string:', locationString);
+                    
+                    if (!user) {
+                      console.error('No user object found');
+                      return;
+                    }
+                    
+                    // Create a new default address with the location
+                    const newAddress = {
+                      label: 'Home' as const,
+                      Name: locationString,
+                      isDefault: true,
+                      coordinates: {
+                        lat: location.coords.latitude,
+                        lng: location.coords.longitude
+                      }
+                    };
+                    
+                    // Keep existing non-default addresses
+                    const otherAddresses = user.addresses?.filter(addr => !addr.isDefault) || [];
+                    
+                    // Update the user with the new default address
+                    const updatedUser = {
+                      ...user,
+                      addresses: [newAddress, ...otherAddresses]
+                    };
+                    
+                    console.log('Updating user with new address:', updatedUser);
+                    await setUser(updatedUser);
+                    console.log('User updated successfully');
+                  } else {
+                    console.warn('No geocode results found');
+                  }
+                } else {
+                  console.warn('Location permission denied');
+                }
+              } catch (error) {
+                console.error('Error in location handling:', error);
+              }
+            }}
+          >
+            <Text style={styles.locationButton}>
+              {user?.addresses?.find(addr => addr.isDefault)?.Name 
+                ? `Current: ${user.addresses.find(addr => addr.isDefault)?.Name}`
+                : "Use current location"}
+            </Text>
+          </TouchableOpacity>
         </View>
         <TouchableOpacity onPress={() => router.push("/profile")}>
           <Image
-            source={{ uri: user?.avatar || "https://images.unsplash.com/photo-1531123897727-8f129e1688ce?q=80&w=200" }}
+            source={{ uri: user?.profilePicture || "https://images.unsplash.com/photo-1531123897727-8f129e1688ce?q=80&w=200" }}
             style={styles.avatar}
           />
         </TouchableOpacity>
       </View>
 
       {/* Featured Recipe */}
-      <View style={styles.featuredContainer}>
-        <RecipeCard recipe={featuredRecipe} variant="featured" />
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Text style={styles.sectionTitle}>Featured Recipe</Text>
+          <View style={styles.rotationIndicator}>
+            <TouchableOpacity 
+              onPress={() => setFeaturedRecipes(getRandomRecipes(1))}
+              style={styles.refreshButton}
+            >
+              <Text style={styles.seeAll}>Refresh</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+        <View style={styles.singleRecipeContainer}>
+          <TouchableOpacity 
+            style={styles.navButton}
+            onPress={() => {
+              const currentIndex = recipes.findIndex(r => r.id === featuredRecipes[0]?.id);
+              const prevIndex = (currentIndex - 1 + recipes.length) % recipes.length;
+              setFeaturedRecipes([recipes[prevIndex]]);
+            }}
+          >
+            <Text style={styles.navButtonText}>‹</Text>
+          </TouchableOpacity>
+          
+          <View style={styles.featuredRecipeCard}>
+            {featuredRecipes[0] ? (
+              <RecipeCard 
+                recipe={featuredRecipes[0]} 
+                variant="featured" 
+                style={{
+                  width: '100%',
+                  maxWidth: 1000,
+                  alignSelf: 'center',
+                  shadowColor: '#000',
+                  shadowOffset: { width: 0, height: 4 },
+                  shadowOpacity: 0.15,
+                  shadowRadius: 8,
+                  elevation: 5,
+                }}
+                imageStyle={{
+                  height: 200,
+                  borderTopLeftRadius: 16,
+                  borderTopRightRadius: 16,
+                }}
+                contentStyle={{
+                  padding: 16,
+                }}
+              />
+            ) : (
+              <Text>No featured recipes found</Text>
+            )}
+          </View>
+          
+          <TouchableOpacity 
+            style={styles.navButton}
+            onPress={() => {
+              const currentIndex = recipes.findIndex(r => r.id === featuredRecipes[0]?.id);
+              const nextIndex = (currentIndex + 1) % recipes.length;
+              setFeaturedRecipes([recipes[nextIndex]]);
+            }}
+          >
+            <Text style={styles.navButtonText}>›</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* Categories */}
@@ -341,5 +498,68 @@ const styles = StyleSheet.create({
     ...typography.bodySmall,
     color: colors.primary,
     fontWeight: "600",
+  },
+  seeAll: {
+    ...typography.body2,
+    color: colors.primary,
+  },
+  section: {
+    marginBottom: 24,
+    width: '100%',
+    maxWidth: 1200,
+    alignSelf: 'center',
+    paddingHorizontal: 16,
+  },
+  horizontalScroll: {
+    paddingHorizontal: 12,
+  },
+  featuredRecipeCard: {
+    flex: 1,
+    maxWidth: 800,
+    marginHorizontal: 16,
+  },
+  rotationIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  rotationText: {
+    ...typography.caption,
+    color: colors.lightText,
+  },
+  refreshButton: {
+    padding: 4,
+  },
+  singleRecipeContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    // paddingHorizontal: 20,
+    width: '100%',
+    maxWidth: 1000,
+    alignSelf: 'center',
+  },
+  navButton: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.white,
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+    marginHorizontal: 8,
+  },
+  navButtonText: {
+    fontSize: 24,
+    fontWeight: '600',
+  },
+  locationButton: {
+    ...typography.bodySmall,
+    color: colors.primary,
+    fontWeight: '600',
   },
 });

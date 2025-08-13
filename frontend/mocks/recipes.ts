@@ -1,3 +1,5 @@
+import { id } from "zod/v4/locales";
+
 export const popularTags = [
   "traditional",
   "spicy",
