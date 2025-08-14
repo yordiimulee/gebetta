@@ -38,7 +38,7 @@ const foodKeywords = [
 export default function CreateRecipeScreen() {
   const router = useRouter();
   const { addRecipe } = useRecipeStore();
-  const { user } = useAuthStore();
+  // const { user } = useAuthStore();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isValidating, setIsValidating] = useState(false);
 
@@ -77,12 +77,12 @@ export default function CreateRecipeScreen() {
 
   useEffect(() => {
     // Check if user is logged in
-    if (!user) {
-      setErrors({
-        auth: "You need to be logged in to create recipes"
-      });
-    }
-  }, [user]);
+    // if (!user) {
+    //   setErrors({
+    //     auth: "You need to be logged in to create recipes"
+    //   });
+    // }
+  }, []);
 
   const pickImage = async () => {
     const result = await ImagePicker.launchImageLibraryAsync({
@@ -150,10 +150,10 @@ export default function CreateRecipeScreen() {
   const validateForm = () => {
     const newErrors: any = {};
 
-    if (!user) {
-      newErrors.auth = "You need to be logged in to create recipes";
-      return false;
-    }
+    // if (!user) {
+    //   newErrors.auth = "You need to be logged in to create recipes";
+    //   return false;
+    // }
 
     if (!title.trim()) {
       newErrors.title = "Title is required";
@@ -233,12 +233,12 @@ export default function CreateRecipeScreen() {
   };
 
   const handleSubmit = async () => {
-    if (!user) {
-      Alert.alert("Login Required", "Please login to create recipes", [
-        { text: "OK", onPress: () => router.replace("/(auth)") }
-      ]);
-      return;
-    }
+    // if (!user) {
+    //   Alert.alert("Login Required", "Please login to create recipes", [
+    //     { text: "OK", onPress: () => router.replace("/(auth)") }
+    //   ]);
+    //   return;
+    // }
 
     if (!validateForm()) {
       return;

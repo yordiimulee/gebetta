@@ -52,10 +52,10 @@ export default function HomeScreen() {
     // Set initial featured recipes
     setFeaturedRecipes(getRandomRecipes(1));
     
-    // Set up automatic rotation every 30 seconds
+    // Set up automatic rotation every 5 seconds
     const rotationInterval = setInterval(() => {
       setFeaturedRecipes(getRandomRecipes(1));
-    }, 30000); // 30 seconds
+    }, 5000); // 5 seconds
     
     // Clean up interval on component unmount
     return () => clearInterval(rotationInterval);
@@ -217,56 +217,32 @@ export default function HomeScreen() {
           </View>
         </View>
         <View style={styles.singleRecipeContainer}>
-          <TouchableOpacity 
-            style={styles.navButton}
-            onPress={() => {
-              const currentIndex = recipes.findIndex(r => r.id === featuredRecipes[0]?.id);
-              const prevIndex = (currentIndex - 1 + recipes.length) % recipes.length;
-              setFeaturedRecipes([recipes[prevIndex]]);
-            }}
-          >
-            <Text style={styles.navButtonText}>‹</Text>
-          </TouchableOpacity>
-          
           <View style={styles.featuredRecipeCard}>
             {featuredRecipes[0] ? (
-              <RecipeCard 
-                recipe={featuredRecipes[0]} 
-                variant="featured" 
-                style={{
-                  width: '100%',
-                  maxWidth: 1000,
-                  alignSelf: 'center',
-                  shadowColor: '#000',
-                  shadowOffset: { width: 0, height: 4 },
-                  shadowOpacity: 0.15,
-                  shadowRadius: 8,
-                  elevation: 5,
-                }}
-                imageStyle={{
-                  height: 200,
-                  borderTopLeftRadius: 16,
-                  borderTopRightRadius: 16,
-                }}
-                contentStyle={{
-                  padding: 16,
-                }}
-              />
+              <TouchableOpacity 
+                onPress={() => router.push(`/recipe/${featuredRecipes[0].id}`)}
+                activeOpacity={0.9}
+              >
+                <View style={styles.featuredImageContainer}>
+                  <Image
+                    source={{ uri: featuredRecipes[0].imageUrl }}
+                    style={styles.featuredImage}
+                    contentFit="cover"
+                    transition={300}
+                  />
+                  <View style={styles.featuredTitleContainer}>
+                    <Text style={styles.featuredTitle} numberOfLines={2}>
+                      {featuredRecipes[0].title}
+                    </Text>
+                  </View>
+                </View>
+              </TouchableOpacity>
             ) : (
-              <Text>No featured recipes found</Text>
+              <View style={styles.placeholder}>
+                <Text>Loading featured recipe...</Text>
+              </View>
             )}
           </View>
-          
-          <TouchableOpacity 
-            style={styles.navButton}
-            onPress={() => {
-              const currentIndex = recipes.findIndex(r => r.id === featuredRecipes[0]?.id);
-              const nextIndex = (currentIndex + 1) % recipes.length;
-              setFeaturedRecipes([recipes[nextIndex]]);
-            }}
-          >
-            <Text style={styles.navButtonText}>›</Text>
-          </TouchableOpacity>
         </View>
       </View>
 
@@ -561,5 +537,37 @@ const styles = StyleSheet.create({
     ...typography.bodySmall,
     color: colors.primary,
     fontWeight: '600',
+  },
+  featuredImageContainer: {
+    width: '100%',
+    aspectRatio: 16/9,
+    borderRadius: 12,
+    overflow: 'hidden',
+    backgroundColor: '#f0f0f0',
+  },
+  featuredImage: {
+    width: '100%',
+    height: '100%',
+  },
+  featuredTitleContainer: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    padding: 16,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+  },
+  featuredTitle: {
+    color: 'white',
+    fontSize: 14,
+    fontWeight: 'bold',
+    textShadowColor: 'rgba(0, 0, 0, 0.75)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 3,
+  },
+  placeholder: {
+    height: 200,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });

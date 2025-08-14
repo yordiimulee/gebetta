@@ -9,30 +9,30 @@ import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 export default function CreateScreen() {
   const router = useRouter();
-  const { isAuthenticated } = useAuthStore();
+  // const { isAuthenticated } = useAuthStore();
 
   const handleCreateRecipe = () => {
     router.push("/create-recipe");
   };
 
-  if (!isAuthenticated) {
-    return (
-      <View style={styles.container}>
-        <View style={styles.authPrompt}>
-          <Text style={styles.authTitle}>Sign in to create recipes</Text>
-          <Text style={styles.authText}>
-            Join our community to share your favorite Ethiopian recipes
-          </Text>
+  // if (!isAuthenticated) {
+  //   return (
+  //     <View style={styles.container}>
+  //       <View style={styles.authPrompt}>
+  //         <Text style={styles.authTitle}>Sign in to create recipes</Text>
+  //         <Text style={styles.authText}>
+  //           Join our community to share your favorite Ethiopian recipes
+  //         </Text>
           <TouchableOpacity
             style={styles.authButton}
             onPress={() => router.push("/(auth)")}
           >
             <Text style={styles.authButtonText}>Sign In</Text>
           </TouchableOpacity>
-        </View>
-      </View>
-    );
-  }
+  //       </View>
+  //     </View>
+  //   );
+  // }
 
   return (
     <View style={styles.container}>
