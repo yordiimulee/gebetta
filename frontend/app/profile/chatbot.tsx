@@ -1,6 +1,6 @@
 import colors from "@/constants/colors";
 import typography from "@/constants/typography";
-import { SendHorizonal as Send, User as UserIcon } from "lucide-react-native";
+import { User as UserIcon } from "lucide-react-native";
 import React, { useEffect, useRef, useState } from "react";
 import {
   ActivityIndicator,
@@ -198,7 +198,7 @@ export default function ChatbotScreen() {
           onPress={handleSend}
           disabled={!inputText.trim() || isLoading}
         >
-          <Send size={18} color={colors.white} />
+          <Text style={styles.sendButtonText}>➤</Text>
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
@@ -343,5 +343,10 @@ const styles = StyleSheet.create({
   },
   disabledButton: {
     backgroundColor: colors.lightText,
+  },
+  sendButtonText: {
+    color: colors.white,
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

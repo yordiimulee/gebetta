@@ -298,7 +298,10 @@ export default function AddressesScreen() {
   };
 
   // Get display name for address label
-  const getLabelDisplayName = (label: string): string => {
+  const getLabelDisplayName = (label: string, customLabel?: string): string => {
+    if (label === 'other' && customLabel) {
+      return customLabel;
+    }
     return label.charAt(0).toUpperCase() + label.slice(1);
   };
 
@@ -345,7 +348,9 @@ export default function AddressesScreen() {
           contentContainerStyle={styles.scrollContent}
         >
           {Object.entries(groupedAddresses).map(([label, addresses]) => {
-            const labelDisplayName = getLabelDisplayName(label);
+            // Get the first address to access customLabel for "other" type addresses
+            const firstAddress = addresses[0];
+            const labelDisplayName = getLabelDisplayName(label, firstAddress?.customLabel);
             const labelIcon = getAddressIcon(label);
             
             return (

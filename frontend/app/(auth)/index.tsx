@@ -3,7 +3,7 @@ import colors from "@/constants/colors";
 import typography from "@/constants/typography";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import React from "react";
+import * as React from "react";
 import { Dimensions, Image, SafeAreaView, StyleSheet, Text, View } from "react-native";
 
 
@@ -13,8 +13,8 @@ export default function WelcomeScreen() {
   const isTablet = width > 768;
 
   const handleGetStarted = () => {
-    // router.push("/(auth)/login");
-    router.push("/(tabs)");
+    //  router.push("/(auth)/login");
+ router.push("/(tabs)");
   };
 
   return (

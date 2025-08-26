@@ -60,10 +60,11 @@ export function AddressForm({ onSubmit, initialData }: AddressFormProps) {
     state: z.string().min(1, 'State is required'),
     postalCode: z.string().min(1, 'Postal Code is required'),
     label: z.enum(['home', 'work', 'other']),
+    customLabel: z.string().optional(),
     isDefault: z.boolean()
   }) as any;
 
-  const { control, handleSubmit, formState: { errors } } = useForm<AddressFormData>({
+  const { control, handleSubmit, formState: { errors }, watch } = useForm<AddressFormData>({
     resolver: zodResolver(addressSchema),
     defaultValues: initialData || {
       street: '',
@@ -71,9 +72,12 @@ export function AddressForm({ onSubmit, initialData }: AddressFormProps) {
       state: '',
       postalCode: '',
       label: 'home',
+      customLabel: '',
       isDefault: false
     } as AddressFormData,
   });
+
+  const selectedLabel = watch('label');
 
   const handleSave = handleSubmit((data) => {
     onSubmit(data);
@@ -147,6 +151,20 @@ export function AddressForm({ onSubmit, initialData }: AddressFormProps) {
           </View>
         )}
       />
+      {selectedLabel === 'other' && (
+        <Controller
+          control={control}
+          name="customLabel"
+          render={({ field: { onChange, value } }) => (
+            <TextInput
+              style={styles.input}
+              placeholder="Custom Label (e.g., Church, Gym, School)"
+              value={value}
+              onChangeText={onChange}
+            />
+          )}
+        />
+      )}
       <TouchableOpacity
         style={styles.button}
         onPress={handleSave}

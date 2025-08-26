@@ -2,9 +2,11 @@ import CategoryPill from "@/components/CategoryPill";
 import RestaurantCard from "@/components/RestaurantCard";
 import colors from "@/constants/colors";
 import typography from "@/constants/typography";
+
+import { useCartStore } from "@/store/cartStore";
 import * as Location from "expo-location";
 import { useRouter } from "expo-router";
-import { ChevronDown, MapPin, Search, X } from "lucide-react-native";
+import { ChevronDown, MapPin, Search, X, ShoppingBag } from "lucide-react-native";
 import { FontAwesome5 } from "@expo/vector-icons";
 import * as React from "react";
 import { useState, useEffect, useCallback } from "react";
@@ -235,6 +237,8 @@ const restaurantCategories = [
 
 export default function RestaurantsScreen() {
   const router = useRouter();
+  const { getCartItemsCount } = useCartStore();
+
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
   const [filteredRestaurants, setFilteredRestaurants] = useState<Restaurant[]>([]);
   const [searchQuery, setSearchQuery] = useState("");
@@ -622,6 +626,7 @@ export default function RestaurantsScreen() {
           </Text>
           <ChevronDown size={16} color={colors.text} />
         </View>
+
       </View>
 
       <View style={styles.searchContainer}>
@@ -898,8 +903,21 @@ export default function RestaurantsScreen() {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
-  );
+       
+       {/* Floating Cart Button - Only visible when there are items in cart */}
+       {getCartItemsCount() > 0 && (
+         <TouchableOpacity
+           style={styles.floatingCartButton}
+           onPress={() => router.push("/cart")}
+         >
+           <ShoppingBag size={24} color={colors.white} />
+           <View style={styles.cartBadge}>
+             <Text style={styles.cartBadgeText}>{getCartItemsCount()}</Text>
+           </View>
+         </TouchableOpacity>
+       )}
+     </SafeAreaView>
+   );
 }
 
 const styles = StyleSheet.create({
@@ -937,6 +955,9 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: 16,
     paddingVertical: 12,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   locationContainer: {
     flexDirection: 'row',
@@ -984,6 +1005,34 @@ const styles = StyleSheet.create({
     marginLeft: 12,
     backgroundColor: colors.lightGray,
     borderRadius: 8,
+  },
+  cartButton: {
+    position: 'absolute',
+    right: 16,
+    top: 12,
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.lightGray,
+    borderRadius: 8,
+  },
+  cartBadge: {
+    position: 'absolute',
+    top: -8,
+    right: -8,
+    backgroundColor: colors.primary,
+    borderRadius: 10,
+    width: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1,
+  },
+  cartBadgeText: {
+    color: colors.white,
+    fontSize: 12,
+    fontWeight: 'bold',
   },
   categoriesContainer: {
     maxHeight: 60,
@@ -1194,5 +1243,22 @@ const styles = StyleSheet.create({
   restaurantsListContent: {
     padding: 16,
     paddingTop: 0,
+  },
+  floatingCartButton: {
+    position: 'absolute',
+    bottom: 20,
+    right: 20,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 10,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
+    elevation: 5,
   },
 });

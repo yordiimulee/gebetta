@@ -12,7 +12,7 @@ interface CartState {
   serviceType: ServiceType;
   
   // Cart actions
-  addToCart: (restaurantId: string, menuItemId: string, quantity: number, specialInstructions?: string) => void;
+  addToCart: (restaurantId: string, menuItemId: string, quantity: number, specialInstructions?: string, metadata?: { name?: string; price?: number }) => void;
   updateQuantity: (itemId: string, quantity: number) => void;
   updateInstructions: (itemId: string, instructions: string) => void;
   removeFromCart: (itemId: string) => void;
@@ -48,7 +48,7 @@ export const useCartStore = create<CartState>()(
       serviceType: 'delivery',
       orders: [],
       
-      addToCart: (restaurantId, menuItemId, quantity, specialInstructions) => {
+      addToCart: (restaurantId, menuItemId, quantity, specialInstructions, metadata) => {
         const { items, restaurantId: currentRestaurantId } = get();
         
         // If adding from a different restaurant, clear the cart first
@@ -80,8 +80,8 @@ export const useCartStore = create<CartState>()(
                 restaurantId,
                 quantity,
                 specialInstructions,
-                name: "", // Will be populated in getCartItems
-                price: 0, // Will be populated in getCartItems
+                name: metadata?.name || "", // Use metadata if provided
+                price: metadata?.price || 0, // Use metadata if provided
               },
             ],
             restaurantId,
@@ -183,7 +183,26 @@ export const useCartStore = create<CartState>()(
         
         if (!restaurantId) return [];
         
-        const restaurant = mockRestaurants.find(r => r.id === restaurantId);
+        // Try to find restaurant in mock data first
+        let restaurant = mockRestaurants.find(r => r.id === restaurantId);
+        let isMockData = true;
+        
+        // If not found in mock data, try to find in real restaurant data
+        if (!restaurant) {
+          // Use stored metadata if available, otherwise fallback to defaults
+          return items.map(item => ({
+            ...item,
+            menuItem: {
+              id: item.id || item.menuItemId,
+              name: item.name || 'Unknown Item',
+              description: '',
+              price: item.price || 0,
+              image: '',
+              category: '',
+            }
+          }));
+        }
+        
         if (!restaurant?.menu?.length) return [];
         
         return items.reduce<Array<CartItem & { menuItem: MenuItem }>>((result, item) => {

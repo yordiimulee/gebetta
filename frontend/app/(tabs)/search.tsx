@@ -10,13 +10,14 @@ import {
   Dimensions,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { Filter, SlidersHorizontal, ChevronDown } from "lucide-react-native";
+import { Settings, ChevronDown, ShoppingBag } from "lucide-react-native";
 import colors from "@/constants/colors";
 import typography from "@/constants/typography";
 import SearchBar from "@/components/SearchBar";
 import RecipeCard from "@/components/RecipeCard";
 import CategoryPill from "@/components/CategoryPill";
 import { useRecipeStore } from "@/store/recipeStore";
+import { useCartStore } from "@/store/cartStore";
 import { popularTags, regions, difficulties } from "@/mocks/recipes";
 
 type SortOption = {
@@ -33,6 +34,7 @@ const sortOptions: SortOption[] = [
 
 export default function SearchScreen() {
   const router = useRouter();
+
   const {
     recipes,
     filteredRecipes,
@@ -46,6 +48,8 @@ export default function SearchScreen() {
     filterByDifficulty,
     filterByTime,
   } = useRecipeStore();
+
+  const { getCartItemsCount } = useCartStore();
 
   const [showFilters, setShowFilters] = useState(false);
   const [showSortOptions, setShowSortOptions] = useState(false);
@@ -131,7 +135,7 @@ export default function SearchScreen() {
           ]}
           onPress={toggleFilters}
         >
-          <Filter
+          <Settings
             size={20}
             color={
               selectedTag || selectedRegion || selectedDifficulty || maxTime
@@ -140,6 +144,7 @@ export default function SearchScreen() {
             }
           />
         </TouchableOpacity>
+
       </View>
 
       {showFilters && (
@@ -320,6 +325,19 @@ export default function SearchScreen() {
           </Text>
         </View>
       )}
+      
+      {/* Floating Cart Button - Only visible when there are items in cart */}
+      {getCartItemsCount() > 0 && (
+        <TouchableOpacity
+          style={styles.floatingCartButton}
+          onPress={() => router.push("/cart")}
+        >
+          <ShoppingBag size={24} color={colors.white} />
+          <View style={styles.cartBadge}>
+            <Text style={styles.cartBadgeText}>{getCartItemsCount()}</Text>
+          </View>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
@@ -498,5 +516,47 @@ const styles = StyleSheet.create({
     ...typography.body,
     color: colors.lightText,
     textAlign: "center",
+  },
+  cartButton: {
+    position: "absolute",
+    right: 10,
+    top: 10,
+    width: 44,
+    height: 44,
+    borderRadius: 14,
+    borderWidth: StyleSheet.hairlineWidth,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: colors.inputBackground,
+  },
+  cartBadge: {
+    position: "absolute",
+    top: -5,
+    right: -5,
+    backgroundColor: colors.primary,
+    borderRadius: 10,
+    minWidth: 20,
+    height: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: 4,
+  },
+  cartBadgeText: {
+    ...typography.bodySmall,
+    color: colors.white,
+    fontWeight: "600",
+  },
+  floatingCartButton: {
+    position: "absolute",
+    bottom: 20,
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: colors.primary,
+    justifyContent: "center",
+    alignItems: "center",
+    flexDirection: "row",
+    zIndex: 10,
   },
 });

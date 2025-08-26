@@ -16,8 +16,9 @@ import { FontAwesome } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import axios from 'axios';
 import * as Location from 'expo-location';
-import colors from '@/constants/colors';
-import typography from '@/constants/typography';
+import colors from '../../constants/colors';
+import typography from '../../constants/typography';
+import { useCartStore } from '../../store/cartStore';
 
 // Restaurant interface based on backend schema
 interface Restaurant {
@@ -93,11 +94,13 @@ export default function RestaurantDetailScreen() {
   const [restaurant, setRestaurant] = useState<Restaurant | null>(null);
   const [menus, setMenus] = useState<Menu[]>([]);
   const [foodItems, setFoodItems] = useState<{ [menuId: string]: Food[] }>({});
-  const [cart, setCart] = useState<CartItem[]>([]);
   const [quantitySelections, setQuantitySelections] = useState<{ [foodId: string]: number }>({});
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingMenus, setIsLoadingMenus] = useState(true);
-  const [isPlacingOrder, setIsPlacingOrder] = useState(false);
+
+  
+  // Use global cart store
+  const { addToCart, getCartItems } = useCartStore();
   const [error, setError] = useState<string | null>(null);
   const [menuError, setMenuError] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
@@ -178,80 +181,35 @@ export default function RestaurantDetailScreen() {
   };
 
   // Add item to cart with selected quantity
-  const addToCart = (food: Food) => {
+  const handleAddToCart = (food: Food) => {
     const quantity = quantitySelections[food._id] || 1;
-    setCart((prevCart) => {
-      const existingItem = prevCart.find((item) => item.food._id === food._id);
-      if (existingItem) {
-        return prevCart.map((item) =>
-          item.food._id === food._id
-            ? { ...item, quantity: item.quantity + quantity }
-            : item
-        );
-      }
-      return [...prevCart, { food, quantity }];
+    
+    // Use global cart store with proper data structure
+    addToCart(restaurant?._id || '', food._id, quantity, undefined, {
+      name: food.foodName,
+      price: food.price,
     });
+    
     // Reset quantity selection after adding to cart
     setQuantitySelections((prev) => ({ ...prev, [food._id]: 1 }));
-  };
-
-  // Place order
-  const placeOrder = async () => {
-    if (cart.length === 0) {
-      Alert.alert('Empty Cart', 'Please add items to your cart before placing an order.');
-      return;
-    }
-
-    setIsPlacingOrder(true);
-
-    try {
-      // Request location permission
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        throw new Error('Location permission denied. Please enable location services.');
-      }
-
-      // Get current location
-      const location = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
-      });
-      const userLocation = {
-        lat: location.coords.latitude,
-        lng: location.coords.longitude,
-      };
-
-      const orderBody = {
-        orderItems: cart.map((item) => ({
-          foodId: item.food._id,
-          quantity: item.quantity,
-        })),
-        typeOfOrder: 'Delivery',
-        location: userLocation,
-      };
-
-      const response = await axios.post(
-        `${baseUrl}/api/v1/orders/place-order`,
-        orderBody,
+    
+    Alert.alert(
+      "Added to Cart",
+      `${quantity} ${food.foodName} added to your cart.`,
+      [
         {
-          headers: {
-            Authorization: `Bearer ${JWT_TOKEN}`,
-          },
-        }
-      );
-
-      if (response.data.status === 'success') {
-        Alert.alert('Success', 'Order placed successfully!');
-        setCart([]); // Clear cart
-        setQuantitySelections({}); // Reset quantities
-      } else {
-        throw new Error('Order placement failed');
-      }
-    } catch (err: any) {
-      Alert.alert('Error', err.message || 'Failed to place order. Please try again.');
-    } finally {
-      setIsPlacingOrder(false);
-    }
+          text: "Continue Shopping",
+          style: "cancel",
+        },
+        {
+          text: "View Cart",
+          onPress: () => router.push("/cart"),
+        },
+      ]
+    );
   };
+
+
 
   useEffect(() => {
     if (id) {
@@ -304,7 +262,7 @@ export default function RestaurantDetailScreen() {
   }
 
   // Calculate total items in cart
-  const totalCartItems = cart.reduce((sum, item) => sum + item.quantity, 0);
+  const totalCartItems = getCartItems().reduce((sum: number, item: any) => sum + item.quantity, 0);
 
   return (
     <SafeAreaView style={styles.container}>
@@ -394,28 +352,15 @@ export default function RestaurantDetailScreen() {
             </Text>
           </View>
 
-          {/* Description */}
-          <View style={styles.descriptionContainer}>
-            <Text style={styles.sectionTitle}>About</Text>
-            <Text style={styles.descriptionText}>{restaurant.description}</Text>
-          </View>
-
-          {/* Additional Info */}
-          <View style={styles.descriptionContainer}>
-            <Text style={styles.sectionTitle}>Details</Text>
-            <Text style={styles.detailText}>
-              License: {restaurant.license}
-            </Text>
+          {/* Delivery Radius */}
+          <View style={styles.detailRow}>
+            <FontAwesome name="map" size={20} color={colors.primary} style={styles.icon} />
             <Text style={styles.detailText}>
               Delivery Radius: {(restaurant.deliveryRadiusMeters / 1000).toFixed(1)} km
             </Text>
-            {typeof restaurant.managerId === 'object' && restaurant.managerId && (
-              <Text style={styles.detailText}>
-                Managed by: {restaurant.managerId.firstName}{' '}
-                {restaurant.managerId.lastName}
-              </Text>
-            )}
           </View>
+
+
 
           {/* Menus */}
           <View style={styles.descriptionContainer}>
@@ -495,7 +440,7 @@ export default function RestaurantDetailScreen() {
                               styles.addToCartButton,
                               food.status !== 'Available' && styles.disabledButton,
                             ]}
-                            onPress={() => food.status === 'Available' && addToCart(food)}
+                            onPress={() => food.status === 'Available' && handleAddToCart(food)}
                             disabled={food.status !== 'Available'}
                             accessibilityLabel={`Add ${food.foodName} to cart`}
                           >
@@ -512,26 +457,7 @@ export default function RestaurantDetailScreen() {
             )}
           </View>
 
-          {/* Place Order Button */}
-          {cart.length > 0 && (
-            <TouchableOpacity
-              style={[
-                styles.placeOrderButton,
-                isPlacingOrder && styles.disabledButton,
-              ]}
-              onPress={placeOrder}
-              disabled={isPlacingOrder}
-              accessibilityLabel="Place order"
-            >
-              {isPlacingOrder ? (
-                <ActivityIndicator size="small" color={colors.white} />
-              ) : (
-                <Text style={styles.placeOrderText}>
-                  Place Order ({totalCartItems} items)
-                </Text>
-              )}
-            </TouchableOpacity>
-          )}
+
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -654,6 +580,7 @@ const styles = StyleSheet.create({
     color: colors.lightText,
     lineHeight: 24,
   },
+
   menuContainer: {
     marginBottom: 16,
   },
@@ -752,19 +679,7 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: 14,
   },
-  placeOrderButton: {
-    backgroundColor: colors.primary,
-    borderRadius: 8,
-    paddingVertical: 12,
-    marginHorizontal: 16,
-    marginTop: 16,
-    alignItems: 'center',
-  },
-  placeOrderText: {
-    ...typography.button,
-    color: colors.white,
-    fontSize: 16,
-  },
+
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',

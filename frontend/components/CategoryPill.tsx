@@ -23,7 +23,7 @@ export default function CategoryPill({
       <Text
         style={[styles.pillText, selected && styles.selectedPillText]}
       >
-        {title}
+        {title.charAt(0).toUpperCase() + title.slice(1)}
       </Text>
     </TouchableOpacity>
   );
@@ -39,14 +39,25 @@ const styles = StyleSheet.create({
     marginVertical: 4,
     alignItems: "center",
     justifyContent: "center",
+    // Add shadow properties
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3, // For Android shadow
   },
   selectedPill: {
     backgroundColor: colors.primary,
+    // Enhanced shadow for selected state
+    shadowOpacity: 0.2,
+    shadowRadius: 6,
+    elevation: 5,
   },
   pillText: {
     ...typography.caption,
     color: colors.text,
     fontWeight: "700",
+    fontSize: 16,
   },
   selectedPillText: {
     color: colors.white,

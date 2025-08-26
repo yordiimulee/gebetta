@@ -6,12 +6,15 @@ import { popularTags } from "@/mocks/recipes";
 import { useAuthStore } from "@/store/useAuthStore";
 import { useRecipeStore } from "@/store/recipeStore";
 import { useRestaurantStore } from "@/store/restaurantStore";
+import { useCartStore } from "@/store/cartStore";
 import { Recipe } from "@/types/recipe";
+import { Restaurant } from "@/types/restaurant";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
-import { ChevronRight, MapPin, Clock } from "lucide-react-native";
+import { ChevronRight, MapPin, Clock, ShoppingBag } from "lucide-react-native";
 import React, { useState, useCallback, useEffect } from "react";
 import * as Location from 'expo-location';
+import axios from "axios";
 // statusBar
 import { StatusBar } from "expo-status-bar";
 import {
@@ -26,6 +29,57 @@ import {
   View,
 } from "react-native";
 
+// Convert API restaurant to app's Restaurant type
+function toAppRestaurant(apiRestaurant: any): Restaurant {
+  const location = apiRestaurant.location;
+  const coordinates = location?.coordinates || [0, 0];
+  
+  return {
+    id: apiRestaurant._id,
+    _id: apiRestaurant._id,
+    name: apiRestaurant.name,
+    slug: apiRestaurant.slug || apiRestaurant.name.toLowerCase().replace(/\s+/g, '-'),
+    ownerId: typeof apiRestaurant.managerId === 'object' 
+      ? (apiRestaurant.managerId?._id || '') 
+      : (apiRestaurant.managerId || ''),
+    imageUrl: apiRestaurant.imageCover || '',
+    imageCover: apiRestaurant.imageCover || '',
+    address: location?.address || 'Address not available',
+    cuisine: apiRestaurant.cuisineTypes?.[0] || 'Other',
+    cuisineTypes: apiRestaurant.cuisineTypes || [],
+    priceLevel: '$$', // Default price level
+    rating: apiRestaurant.ratingAverage || 0,
+    ratingAverage: apiRestaurant.ratingAverage || 0,
+    ratingQuantity: apiRestaurant.ratingQuantity || 0,
+    isOpen: !!apiRestaurant.isOpenNow,
+    isOpenNow: !!apiRestaurant.isOpenNow,
+    isDeliveryAvailable: !!apiRestaurant.isDeliveryAvailable,
+    active: !!apiRestaurant.active,
+    description: apiRestaurant.description || '',
+    deliveryRadiusMeters: apiRestaurant.deliveryRadiusMeters || 5000,
+    license: apiRestaurant.license || 'N/A',
+    managerId: typeof apiRestaurant.managerId === 'object' 
+      ? (apiRestaurant.managerId?._id || '') 
+      : (apiRestaurant.managerId || ''),
+    openHours: apiRestaurant.openHours || '9:00 AM - 10:00 PM',
+    reviews: apiRestaurant.reviews || [],
+    reviewCount: apiRestaurant.reviewCount || 0,
+    shortDescription: apiRestaurant.shortDescription || 
+      (apiRestaurant.description ? 
+        apiRestaurant.description.substring(0, 100) + 
+        (apiRestaurant.description.length > 100 ? '...' : '') 
+        : ''),
+    deliveryFee: 0,
+    estimatedDeliveryTime: '30-45 min',
+    createdAt: apiRestaurant.createdAt || new Date().toISOString(),
+    updatedAt: apiRestaurant.updatedAt || new Date().toISOString(),
+    location: {
+      latitude: coordinates[1],
+      longitude: coordinates[0]
+    }
+  };
+}
+
 export default function HomeScreen() {
   const router = useRouter();
   const { width } = Dimensions.get("window");
@@ -33,12 +87,53 @@ export default function HomeScreen() {
   
   const { user, setUser } = useAuthStore();
   const { recipes, setSelectedTag, isLoading: recipesLoading } = useRecipeStore();
-  const { restaurants, isLoading: restaurantsLoading } = useRestaurantStore();
+  const { restaurants: mockRestaurants, isLoading: restaurantsLoading } = useRestaurantStore();
+  const { getCartItemsCount } = useCartStore();
   
   const [refreshing, setRefreshing] = useState(false);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [featuredRecipes, setFeaturedRecipes] = useState<Recipe[]>([]);
+  const [realRestaurants, setRealRestaurants] = useState<Restaurant[]>([]);
+  const [isLoadingRealRestaurants, setIsLoadingRealRestaurants] = useState(true);
+
   
+  // Fetch real restaurants from API
+  const fetchRealRestaurants = async () => {
+    try {
+      setIsLoadingRealRestaurants(true);
+      console.log('Fetching real restaurants for home page...');
+      const response = await axios.get('https://gebeta-delivery1.onrender.com/api/v1/restaurants');
+      console.log('Home page API Response:', response);
+      
+      let restaurantsData = [];
+      
+      if (response?.data?.data?.restaurants && Array.isArray(response.data.data.restaurants)) {
+        console.log('Found restaurants in response.data.data.restaurants');
+        restaurantsData = response.data.data.restaurants;
+      } else if (Array.isArray(response?.data)) {
+        console.log('Found restaurants directly in response.data');
+        restaurantsData = response.data;
+      } else if (Array.isArray(response?.data?.data)) {
+        console.log('Found restaurants in response.data.data');
+        restaurantsData = response.data.data;
+      } else {
+        console.warn('Unexpected API response structure:', response?.data);
+        throw new Error('Unexpected data format received from server');
+      }
+      
+      console.log('Setting real restaurants data for home page:', restaurantsData);
+      const convertedRestaurants = restaurantsData.map(toAppRestaurant);
+      setRealRestaurants(convertedRestaurants);
+      
+    } catch (err: unknown) {
+      console.error('Error fetching real restaurants for home page:', err);
+      // Fallback to mock restaurants if API fails
+      setRealRestaurants(mockRestaurants);
+    } finally {
+      setIsLoadingRealRestaurants(false);
+    }
+  };
+
   // Get random featured recipes
   const getRandomRecipes = useCallback((count: number) => {
     const shuffled = [...recipes].sort(() => 0.5 - Math.random());
@@ -60,14 +155,28 @@ export default function HomeScreen() {
     // Clean up interval on component unmount
     return () => clearInterval(rotationInterval);
   }, [recipes, getRandomRecipes]);
+
+  // Fetch real restaurants on component mount
+  useEffect(() => {
+    fetchRealRestaurants();
+  }, []);
   
   const featuredRecipe = recipes[0];
   const popularRecipes = recipes.slice(1, 5);
-  const featuredRestaurants = restaurants.slice(0, 3);
+  const featuredRestaurants = realRestaurants.length > 0 ? realRestaurants : mockRestaurants;
   
+  // Filter recipes and restaurants based on selected category
   const filteredRecipes = selectedCategory
     ? recipes.filter((recipe) => recipe.tags.includes(selectedCategory))
     : popularRecipes;
+    
+  const filteredRestaurants = selectedCategory
+    ? realRestaurants.filter((restaurant) => 
+        restaurant.cuisineTypes.some(cuisine => 
+          cuisine.toLowerCase().includes(selectedCategory.toLowerCase())
+        )
+      )
+    : realRestaurants;
 
   const handleCategoryPress = (category: string) => {
     if (selectedCategory === category) {
@@ -93,13 +202,15 @@ export default function HomeScreen() {
 
   const onRefresh = async () => {
     setRefreshing(true);
+    // Refresh real restaurants data
+    await fetchRealRestaurants();
     // In a real app, this would fetch fresh data from API
     setTimeout(() => {
       setRefreshing(false);
     }, 1500);
   };
 
-  const isLoading = recipesLoading || restaurantsLoading;
+  const isLoading = recipesLoading || restaurantsLoading || isLoadingRealRestaurants;
 
   if (isLoading && !refreshing) {
     return (
@@ -195,13 +306,18 @@ export default function HomeScreen() {
             </Text>
           </TouchableOpacity>
         </View>
-        <TouchableOpacity onPress={() => router.push("/profile")}>
-          <Image
-            source={{ uri: user?.profilePicture || "https://images.unsplash.com/photo-1531123897727-8f129e1688ce?q=80&w=200" }}
-            style={styles.avatar}
-          />
-        </TouchableOpacity>
+        <View style={styles.headerRight}>
+          
+          <TouchableOpacity onPress={() => router.push("/profile")}>
+            <Image
+              source={{ uri: user?.profilePicture || "https://images.unsplash.com/photo-1531123897727-8f129e1688ce?q=80&w=200" }}
+              style={styles.avatar}
+            />
+          </TouchableOpacity>
+        </View>
       </View>
+
+
 
       {/* Featured Recipe */}
       <View style={styles.section}>
@@ -265,86 +381,126 @@ export default function HomeScreen() {
         </ScrollView>
       </View>
 
-      {/* Featured Restaurants */}
-      <View style={styles.restaurantsContainer}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Popular Restaurants</Text>
-          <TouchableOpacity
-            style={styles.seeAllButton}
-            onPress={handleSeeAllRestaurants}
-          >
-            <Text style={styles.seeAllText}>See All</Text>
-            <ChevronRight size={16} color={colors.primary} />
-          </TouchableOpacity>
-        </View>
-
-        <ScrollView
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.restaurantsScrollContent}
-        >
-          {featuredRestaurants.map((restaurant) => (
-            <TouchableOpacity 
-              key={restaurant.id}
-              style={styles.restaurantCard}
-              onPress={() => router.push(`/restaurant/${restaurant.id}`)}
+                           {/* Popular Recipes */}
+        <View style={styles.popularContainer}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>
+              {selectedCategory ? `${selectedCategory} Recipes` : "Popular Recipes"}
+            </Text>
+            <TouchableOpacity
+              style={styles.seeAllButton}
+              onPress={() =>
+                selectedCategory
+                  ? handleSeeAllCategory(selectedCategory)
+                  : handleSeeAllPopular()
+              }
             >
-              <Image
-                source={{ uri: restaurant.imageUrl }}
-                style={styles.restaurantImage}
-              />
-              <View style={styles.restaurantInfo}>
-                <Text style={styles.restaurantName} numberOfLines={1}>
-                  {restaurant.name}
-                </Text>
-                <View style={styles.restaurantMeta}>
-                  <View style={styles.ratingContainer}>
-                    <Clock size={14} color={colors.secondary} />
-                    <Text style={styles.ratingText}>{restaurant.rating}</Text>
-                  </View>
-                  <View style={styles.locationContainer}>
-                    <MapPin size={14} color={colors.lightText} />
-                    <Text style={styles.locationText} numberOfLines={1}>
-                      {restaurant.address}
-                    </Text>
+              <Text style={styles.seeAllText}>See All</Text>
+              <ChevronRight size={16} color={colors.primary} />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={styles.recipesScrollContent}
+          >
+            {filteredRecipes.map((recipe) => (
+              <TouchableOpacity 
+                key={recipe.id}
+                style={styles.recipeCard}
+                onPress={() => router.push(`/recipe/${recipe.id}`)}
+              >
+                <Image
+                  source={{ uri: recipe.imageUrl }}
+                  style={styles.recipeImage}
+                />
+                <View style={styles.recipeInfo}>
+                  <Text style={styles.recipeTitle} numberOfLines={2}>
+                    {recipe.title}
+                  </Text>
+                  <View style={styles.recipeMeta}>
+                    <View style={styles.ratingContainer}>
+                      <Clock size={14} color={colors.secondary} />
+                      <Text style={styles.ratingText}>{recipe.cookTime || '30 min'}</Text>
+                    </View>
+                    <View style={styles.locationContainer}>
+                      <MapPin size={14} color={colors.lightText} />
+                      <Text style={styles.locationText} numberOfLines={1}>
+                        {recipe.difficulty || 'Easy'}
+                      </Text>
+                    </View>
                   </View>
                 </View>
-              </View>
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </View>
-
-      {/* Popular Recipes */}
-      <View style={styles.popularContainer}>
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>
-            {selectedCategory ? `${selectedCategory} Recipes` : "Popular Recipes"}
-          </Text>
-          <TouchableOpacity
-            style={styles.seeAllButton}
-            onPress={() =>
-              selectedCategory
-                ? handleSeeAllCategory(selectedCategory)
-                : handleSeeAllPopular()
-            }
-          >
-            <Text style={styles.seeAllText}>See All</Text>
-            <ChevronRight size={16} color={colors.primary} />
-          </TouchableOpacity>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
         </View>
 
-        <FlatList
-          data={filteredRecipes}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => (
-            <RecipeCard recipe={item} variant="horizontal" />
-          )}
-          ItemSeparatorComponent={() => <View style={{ height: 16 }} />}
-          scrollEnabled={false}
-        />
-      </View>
+       {/* Featured Restaurants */}
+       <View style={styles.restaurantsContainer}>
+         <View style={styles.sectionHeader}>
+           <Text style={styles.sectionTitle}>
+             {selectedCategory ? `${selectedCategory} Restaurants` : "Popular Restaurants"}
+           </Text>
+           <TouchableOpacity
+             style={styles.seeAllButton}
+             onPress={handleSeeAllRestaurants}
+           >
+             <Text style={styles.seeAllText}>See All</Text>
+             <ChevronRight size={16} color={colors.primary} />
+           </TouchableOpacity>
+         </View>
+
+         <FlatList
+           data={filteredRestaurants}
+           keyExtractor={(item) => item.id}
+           renderItem={({ item }) => (
+             <TouchableOpacity 
+               style={styles.restaurantCard}
+               onPress={() => router.push(`/restaurant/${item.id}`)}
+             >
+               <Image
+                 source={{ uri: item.imageUrl }}
+                 style={styles.restaurantImage}
+               />
+               <View style={styles.restaurantInfo}>
+                 <Text style={styles.restaurantName} numberOfLines={1}>
+                   {item.name}
+                 </Text>
+                 <View style={styles.restaurantMeta}>
+                   <View style={styles.ratingContainer}>
+                     <Clock size={14} color={colors.secondary} />
+                     <Text style={styles.ratingText}>{item.rating}</Text>
+                   </View>
+                   <View style={styles.locationContainer}>
+                     <MapPin size={14} color={colors.lightText} />
+                     <Text style={styles.locationText} numberOfLines={1}>
+                       {item.address}
+                     </Text>
+                   </View>
+                 </View>
+               </View>
+             </TouchableOpacity>
+           )}
+           ItemSeparatorComponent={() => <View style={{ height: 16 }} />}
+           scrollEnabled={false}
+         />
+       </View>
     </ScrollView>
+    
+    {/* Floating Cart Button - Only visible when there are items in cart */}
+    {getCartItemsCount() > 0 && (
+      <TouchableOpacity
+        style={styles.floatingCartButton}
+        onPress={() => router.push("/cart")}
+      >
+        <ShoppingBag size={24} color={colors.white} />
+        <View style={styles.cartBadge}>
+          <Text style={styles.cartBadgeText}>{getCartItemsCount()}</Text>
+        </View>
+      </TouchableOpacity>
+    )}
     </>
   );
 }
@@ -373,6 +529,31 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: 16,
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 16,
+  },
+  cartButton: {
+    position: 'relative',
+  },
+  cartBadge: {
+    position: 'absolute',
+    top: -8,
+    right: -8,
+    backgroundColor: colors.primary,
+    borderRadius: 10,
+    width: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 1,
+  },
+  cartBadgeText: {
+    color: colors.white,
+    fontSize: 12,
+    fontWeight: 'bold',
   },
   greeting: {
     ...typography.heading3,
@@ -410,28 +591,63 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
     paddingBottom: 8,
   },
-  restaurantCard: {
+  recipesScrollContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 8,
+  },
+  recipeCard: {
     width: 220,
     backgroundColor: colors.white,
     borderRadius: 12,
-    marginRight: 16,
+    marginRight: 25,
+    marginBottom: 16,
+    overflow: "hidden",
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  recipeImage: {
+    width: "100%",
+    height: 160,
+  },
+  recipeInfo: {
+    padding: 6,
+  },
+  recipeTitle: {
+    ...typography.heading4,
+    marginBottom: 4,
+    fontSize: 16,
+    fontWeight: '600',
+  },
+  recipeMeta: {
+    gap: 8,
+  },
+  restaurantCard: {
+    width: "100%",
+    backgroundColor: colors.white,
+    borderRadius: 12,
     overflow: "hidden",
     shadowColor: colors.black,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 2,
+    shadowOpacity: 0.08,
+    shadowRadius: 6,
+    elevation: 3,
+    flexDirection: 'row',
   },
   restaurantImage: {
-    width: "100%",
+    width: 120,
     height: 120,
   },
   restaurantInfo: {
     padding: 12,
+    flex: 1,
+    justifyContent: 'center',
   },
   restaurantName: {
     ...typography.heading4,
-    marginBottom: 8,
+    marginRight: 8,
   },
   restaurantMeta: {
     gap: 8,
@@ -570,4 +786,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
+  floatingCartButton: {
+    position: 'absolute',
+    bottom: 20,
+    right: 20,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexDirection: 'row',
+    zIndex: 10,
+  },
+
 });

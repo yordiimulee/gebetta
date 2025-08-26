@@ -11,6 +11,7 @@ interface AddressFormData {
   state: string;
   postalCode: string;
   label: 'home' | 'work' | 'other';
+  customLabel: string;
   isDefault: boolean;
 }
 
@@ -25,6 +26,7 @@ export default function EditAddressScreen() {
     state: '',
     postalCode: '',
     label: 'home',
+    customLabel: '',
     isDefault: false,
   });
   
@@ -40,6 +42,7 @@ export default function EditAddressScreen() {
           state: existingAddress.state,
           postalCode: existingAddress.postalCode,
           label: existingAddress.label,
+          customLabel: existingAddress.customLabel || '',
           isDefault: existingAddress.isDefault,
         });
       }
@@ -86,6 +89,18 @@ export default function EditAddressScreen() {
           ))}
         </View>
       </View>
+
+      {formData.label === 'other' && (
+        <View style={styles.inputContainer}>
+          <Text style={styles.label}>Custom Label</Text>
+          <TextInput
+            value={formData.customLabel}
+            onChangeText={(text: string) => handleChange('customLabel', text)}
+            style={styles.input}
+            placeholder="e.g., Church, Gym, School"
+          />
+        </View>
+      )}
 
       <View style={styles.inputContainer}>
         <Text style={styles.label}>Street</Text>

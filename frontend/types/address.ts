@@ -5,6 +5,7 @@ export type AddressType = {
   state: string;
   postalCode: string;
   label: 'home' | 'work' | 'other';
+  customLabel?: string;
   isDefault: boolean;
   note?: string;
   createdAt: string;

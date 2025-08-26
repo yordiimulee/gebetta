@@ -45,7 +45,10 @@ export default function AddressCard({
             color={selected ? colors.primary : colors.lightText} 
           />
           <Text style={[styles.label, selected && styles.selectedText]}>
-            {address.label}
+            {address.label === 'other' && address.customLabel 
+              ? address.customLabel 
+              : address.label.charAt(0).toUpperCase() + address.label.slice(1)
+            }
           </Text>
           {address.isDefault && (
             <View style={styles.defaultBadge}>

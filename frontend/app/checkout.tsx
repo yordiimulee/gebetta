@@ -7,7 +7,7 @@ import { useProfileStore } from "@/store/profileStore";
 import { OrderServiceType } from "@/types/restaurant";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
-import { Clock, CreditCard, MapPin, MapPinOff, Plus, UtensilsCrossed } from "lucide-react-native";
+import { Clock, MapPin } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
 import {
   Alert,
@@ -16,40 +16,46 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
+  Modal,
 } from "react-native";
+import { WebView } from "react-native-webview";
 
 export default function CheckoutScreen() {
   const router = useRouter();
-  const { 
-    getCartItems, 
-    getCartSubtotal, 
-    getDeliveryFee, 
-    getTax, 
-    getCartTotal, 
-    restaurantId, 
-    createOrder,
+  const {
+    getCartItems,
+    getCartSubtotal,
+    getDeliveryFee,
+    getTax,
+    getCartTotal,
+    restaurantId,
     serviceType,
-    setServiceType
+    setServiceType,
+    clearCart,
   } = useCartStore();
-  const { addresses, paymentMethods } = useProfileStore();
-  
+  const { addresses } = useProfileStore();
+
   const [isLoading, setIsLoading] = useState(true);
   const [selectedAddress, setSelectedAddress] = useState<string | null>(null);
-  const [selectedPayment, setSelectedPayment] = useState<string | null>(null);
   const [tip, setTip] = useState(0);
+  const [customTip, setCustomTip] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [tableNumber, setTableNumber] = useState("");
   const [pickupTime, setPickupTime] = useState("");
+  const [vehicleType, setVehicleType] = useState("Bicycle");
+  const [showWebView, setShowWebView] = useState(false);
+  const [webViewUrl, setWebViewUrl] = useState<string | null>(null);
 
   const cartItems = getCartItems();
   const subtotal = getCartSubtotal();
   const deliveryFee = getDeliveryFee();
   const tax = getTax();
   const total = getCartTotal() + tip;
-  
-  const restaurant = restaurants.find(r => r.id === restaurantId);
+
+  const restaurant = restaurants.find((r) => r.id === restaurantId);
 
   useEffect(() => {
     // Simulate loading data
@@ -59,84 +65,147 @@ export default function CheckoutScreen() {
     };
     loadData();
 
-    // Set default address and payment method if available
-    if (addresses.length > 0 && serviceType === 'delivery') {
+    // Set default address if available
+    if (addresses.length > 0 && serviceType === "delivery") {
       const defaultAddress = addresses.find((addr) => addr.isDefault);
       setSelectedAddress(defaultAddress ? defaultAddress.id : addresses[0].id);
     }
-
-    if (paymentMethods.length > 0) {
-      const defaultPayment = paymentMethods.find((pm) => pm.isDefault);
-      setSelectedPayment(defaultPayment ? defaultPayment.id : paymentMethods[0].id);
-    }
-  }, [addresses, paymentMethods, serviceType]);
+  }, [addresses, serviceType]);
 
   const handleAddAddress = () => {
     router.push("/profile/addresses/add");
   };
 
-  const handleAddPayment = () => {
-    router.push("/profile/payment/add");
-  };
-
-  const handlePlaceOrder = () => {
-    if (serviceType === 'delivery' && !selectedAddress) {
-      Alert.alert("Error", "Please select a delivery address");
-      return;
-    }
-
-    if (!selectedPayment) {
-      Alert.alert("Error", "Please select a payment method");
-      return;
-    }
-
-    if (serviceType === 'dine-in' && !tableNumber) {
-      Alert.alert("Error", "Please enter your table number");
-      return;
-    }
-
-    if (serviceType === 'pickup' && !pickupTime) {
-      Alert.alert("Error", "Please select a pickup time");
-      return;
-    }
-
+  const handlePlaceOrder = async () => {
     setIsProcessing(true);
+    let result: any = null;
 
     try {
-      // Get the payment method type
-      const paymentMethod = paymentMethods.find(pm => pm.id === selectedPayment);
-      if (!paymentMethod) {
-        throw new Error("Selected payment method not found");
+      // Validate required fields
+      if (serviceType === "delivery" && !selectedAddress) {
+        Alert.alert("Error", "Please select a delivery address");
+        setIsProcessing(false);
+        return;
       }
 
-      // Create the order
-      const order = createOrder(
-        paymentMethod.type as 'card' | 'cash' | 'mobile-money',
-        selectedAddress,
-        tip,
-        serviceType === 'dine-in' ? tableNumber : undefined,
-        serviceType === 'pickup' ? pickupTime : undefined
+      if (serviceType === "dine-in" && !tableNumber) {
+        Alert.alert("Error", "Please enter your table number");
+        setIsProcessing(false);
+        return;
+      }
+
+      if (serviceType === "pickup" && !pickupTime) {
+        Alert.alert("Error", "Please select a pickup time");
+        setIsProcessing(false);
+        return;
+      }
+
+      const selectedAddressData = addresses.find(
+        (addr) => addr.id === selectedAddress
       );
-      
-      // Navigate to order confirmation
-      router.replace(`/order/${order.id}`);
+
+      const orderPayload = {
+        restaurantId: restaurantId,
+        orderItems: cartItems.map((item) => ({
+          foodId: item.menuItemId,
+          quantity: item.quantity,
+        })),
+        typeOfOrder:
+          serviceType === "delivery"
+            ? "Delivery"
+            : serviceType === "pickup"
+            ? "Pickup"
+            : "Dine-in",
+        ...(serviceType === "delivery" && {
+          vehicleType: vehicleType,
+          destinationLocation: {
+            lat: 9.033872, // Fixed coordinates for now
+            lng: 38.750659,
+          },
+        }),
+        tip: tip,
+        ...(serviceType === "dine-in" && { tableNumber }),
+        ...(serviceType === "pickup" && { pickupTime }),
+      };
+
+      console.log("Order payload:", JSON.stringify(orderPayload, null, 2));
+
+      const response = await fetch(
+        "https://gebeta-delivery1.onrender.com/api/v1/orders/place-order",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization:
+              "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY4OTFhNjM0NTZlYWE3ODgxMDJmOGM5NyIsImlhdCI6MTc1NjEyNjcwNywiZXhwIjoxNzYzOTAyNzA3fQ.1IfX9qLFN3uEz_V6JKbN3bNEbewytjix7u616WgCoDk",
+          },
+          body: JSON.stringify(orderPayload),
+        }
+      );
+
+      console.log("Response:", response);
+
+      if (response.ok) {
+        result = await response.json();
+        console.log("Order result:", result);
+
+        // Clear cart after successful order
+        clearCart();
+
+        // If a payment checkout_url is available, show WebView
+        if (
+          typeof result === "object" &&
+          result?.data?.payment?.checkout_url
+        ) {
+          const checkoutUrl = result.data.payment.checkout_url;
+          setWebViewUrl(checkoutUrl);
+          setShowWebView(true);
+          return; // Don't show success alert yet, wait for payment
+        }
+
+        Alert.alert("Success", "Order placed successfully!", [
+          {
+            text: "OK",
+            onPress: () => {
+              // Navigate to home or order confirmation
+              router.replace("/(tabs)");
+            },
+          },
+        ]);
+      } else {
+        const errorData = await response.json().catch(() => ({}));
+        console.error("Order failed:", errorData);
+        Alert.alert("Error", errorData.message || "Failed to place order");
+      }
     } catch (error) {
-      Alert.alert("Error", error instanceof Error ? error.message : "Failed to place order");
+      console.error("Order error:", error);
+      Alert.alert(
+        "Error",
+        error instanceof Error ? error.message : "Failed to place order"
+      );
+    } finally {
       setIsProcessing(false);
     }
   };
 
   const handleTipChange = (amount: number) => {
     setTip(amount);
+    setCustomTip("");
+  };
+
+  const handleCustomTipChange = (value: string) => {
+    setCustomTip(value);
+    const numericValue = parseFloat(value) || 0;
+    setTip(numericValue);
   };
 
   const handleServiceTypeChange = (type: OrderServiceType) => {
     setServiceType(type);
-    
+
     // Reset related fields when changing service type
-    if (type === 'dine-in') {
+    if (type === "dine-in") {
       setSelectedAddress(null);
-    } else if (type === 'pickup') {
+    } else if (type === "pickup") {
       setSelectedAddress(null);
       setTableNumber("");
     } else {
@@ -147,15 +216,21 @@ export default function CheckoutScreen() {
 
   const getServiceTypeLabel = (type: OrderServiceType) => {
     switch (type) {
-      case 'delivery':
-        return 'Delivery';
-      case 'dine-in':
-        return 'Dine-in';
-      case 'pickup':
-        return 'Pickup';
+      case "delivery":
+        return "Delivery";
+      case "dine-in":
+        return "Dine-in";
+      case "pickup":
+        return "Pickup";
       default:
-        return 'Delivery';
+        return "Delivery";
     }
+  };
+
+  // Remove lucide-react-native icons that don't exist
+  const getVehicleIcon = (type: string) => {
+    // Fallback to MapPin for all
+    return MapPin;
   };
 
   if (isLoading) {
@@ -170,6 +245,53 @@ export default function CheckoutScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      <Modal
+        visible={showWebView && !!webViewUrl}
+        animationType="slide"
+        onRequestClose={() => setShowWebView(false)}
+      >
+        <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }}>
+          <View style={{ flexDirection: "row", alignItems: "center", padding: 8, backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: colors.divider }}>
+            <TouchableOpacity onPress={() => setShowWebView(false)} style={{ padding: 8 }}>
+              <Text style={{ color: colors.primary, fontWeight: "bold" }}>Close</Text>
+            </TouchableOpacity>
+            <Text style={{ flex: 1, textAlign: "center", fontWeight: "bold" }}>Payment</Text>
+            <View style={{ width: 48 }} />
+          </View>
+          {webViewUrl && (
+            <WebView
+              source={{ uri: webViewUrl }}
+              style={{ flex: 1 }}
+              startInLoadingState
+              javaScriptEnabled
+              domStorageEnabled
+              onNavigationStateChange={(navState) => {
+                // Optionally, handle payment completion here
+                // For example, if navState.url contains a success/cancel URL, close WebView and show success
+                if (
+                  navState.url.includes("payment-success") ||
+                  navState.url.includes("success")
+                ) {
+                  setShowWebView(false);
+                  Alert.alert("Success", "Payment completed!", [
+                    {
+                      text: "OK",
+                      onPress: () => router.replace("/(tabs)"),
+                    },
+                  ]);
+                }
+                if (
+                  navState.url.includes("payment-cancel") ||
+                  navState.url.includes("cancel")
+                ) {
+                  setShowWebView(false);
+                  Alert.alert("Payment Cancelled", "You cancelled the payment.");
+                }
+              }}
+            />
+          )}
+        </SafeAreaView>
+      </Modal>
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
@@ -185,9 +307,19 @@ export default function CheckoutScreen() {
             <View style={styles.restaurantDetails}>
               <Text style={styles.restaurantName}>{restaurant.name}</Text>
               <View style={styles.deliveryTimeContainer}>
-                <Clock size={14} color={colors.lightText} style={styles.deliveryTimeIcon} />
+                <Clock
+                  size={14}
+                  color={colors.lightText}
+                  style={styles.deliveryTimeIcon}
+                />
                 <Text style={styles.deliveryTimeText}>
-                  Estimated {serviceType === 'delivery' ? 'delivery' : serviceType === 'pickup' ? 'pickup' : 'preparation'}: {restaurant.estimatedDeliveryTime}
+                  Estimated{" "}
+                  {serviceType === "delivery"
+                    ? "delivery"
+                    : serviceType === "pickup"
+                    ? "pickup"
+                    : "preparation"}
+                  : {restaurant.estimatedDeliveryTime}
                 </Text>
               </View>
             </View>
@@ -200,60 +332,60 @@ export default function CheckoutScreen() {
             <TouchableOpacity
               style={[
                 styles.serviceTypeButton,
-                serviceType === 'delivery' && styles.serviceTypeButtonActive,
+                serviceType === "delivery" && styles.serviceTypeButtonActive,
               ]}
-              onPress={() => handleServiceTypeChange('delivery')}
+              onPress={() => handleServiceTypeChange("delivery")}
             >
-              <MapPin 
-                size={20} 
-                color={serviceType === 'delivery' ? colors.white : colors.text} 
+              <MapPin
+                size={20}
+                color={serviceType === "delivery" ? colors.white : colors.text}
               />
-              <Text 
+              <Text
                 style={[
                   styles.serviceTypeText,
-                  serviceType === 'delivery' && styles.serviceTypeTextActive,
+                  serviceType === "delivery" && styles.serviceTypeTextActive,
                 ]}
               >
                 Delivery
               </Text>
             </TouchableOpacity>
-            
+
             <TouchableOpacity
               style={[
                 styles.serviceTypeButton,
-                serviceType === 'dine-in' && styles.serviceTypeButtonActive,
+                serviceType === "dine-in" && styles.serviceTypeButtonActive,
               ]}
-              onPress={() => handleServiceTypeChange('dine-in')}
+              onPress={() => handleServiceTypeChange("dine-in")}
             >
-              <UtensilsCrossed 
-                size={20} 
-                color={serviceType === 'dine-in' ? colors.white : colors.text} 
+              <MapPin
+                size={20}
+                color={serviceType === "dine-in" ? colors.white : colors.text}
               />
-              <Text 
+              <Text
                 style={[
                   styles.serviceTypeText,
-                  serviceType === 'dine-in' && styles.serviceTypeTextActive,
+                  serviceType === "dine-in" && styles.serviceTypeTextActive,
                 ]}
               >
                 Dine-in
               </Text>
             </TouchableOpacity>
-            
+
             <TouchableOpacity
               style={[
                 styles.serviceTypeButton,
-                serviceType === 'pickup' && styles.serviceTypeButtonActive,
+                serviceType === "pickup" && styles.serviceTypeButtonActive,
               ]}
-              onPress={() => handleServiceTypeChange('pickup')}
+              onPress={() => handleServiceTypeChange("pickup")}
             >
-              <MapPinOff 
-                size={20} 
-                color={serviceType === 'pickup' ? colors.white : colors.text} 
+              <MapPin
+                size={20}
+                color={serviceType === "pickup" ? colors.white : colors.text}
               />
-              <Text 
+              <Text
                 style={[
                   styles.serviceTypeText,
-                  serviceType === 'pickup' && styles.serviceTypeTextActive,
+                  serviceType === "pickup" && styles.serviceTypeTextActive,
                 ]}
               >
                 Pickup
@@ -262,73 +394,137 @@ export default function CheckoutScreen() {
           </View>
         </View>
 
-        {serviceType === 'delivery' && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Delivery Address</Text>
-            
-            {addresses.length === 0 ? (
-              <TouchableOpacity
-                style={styles.addButton}
-                onPress={handleAddAddress}
-              >
-                <Plus size={20} color={colors.primary} />
-                <Text style={styles.addButtonText}>Add Address</Text>
-              </TouchableOpacity>
-            ) : (
-              <View style={styles.addressesContainer}>
-                {addresses.map((address) => (
-                  <TouchableOpacity
-                    key={address.id}
-                    style={[
-                      styles.addressCard,
-                      selectedAddress === address.id && styles.selectedCard,
-                    ]}
-                    onPress={() => setSelectedAddress(address.id)}
-                  >
-                    <View style={styles.addressCardContent}>
-                      <MapPin
-                        size={20}
-                        color={selectedAddress === address.id ? colors.primary : colors.text}
-                        style={styles.addressIcon}
-                      />
-                      <View style={styles.addressDetails}>
-                        <Text style={styles.addressType}>{address.type || address.label || "Address"}</Text>
-                        <Text style={styles.addressText}>{address.addressLine1}</Text>
-                        {address.addressLine2 && (
-                          <Text style={styles.addressText}>{address.addressLine2}</Text>
-                        )}
-                      </View>
-                    </View>
-                    <View
+        {serviceType === "delivery" && (
+          <>
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Vehicle Type</Text>
+              <View style={styles.vehicleTypeContainer}>
+                {["Bicycle", "Motorcycle", "Car"].map((type) => {
+                  const IconComponent = getVehicleIcon(type);
+                  return (
+                    <TouchableOpacity
+                      key={type}
                       style={[
-                        styles.radioButton,
-                        selectedAddress === address.id && styles.radioButtonSelected,
+                        styles.vehicleTypeButton,
+                        vehicleType === type && styles.vehicleTypeButtonActive,
                       ]}
+                      onPress={() => setVehicleType(type)}
                     >
-                      {selectedAddress === address.id && (
-                        <View style={styles.radioButtonInner} />
-                      )}
-                    </View>
-                  </TouchableOpacity>
-                ))}
-                
+                      <IconComponent
+                        size={20}
+                        color={
+                          vehicleType === type ? colors.white : colors.text
+                        }
+                      />
+                      <Text
+                        style={[
+                          styles.vehicleTypeText,
+                          vehicleType === type && styles.vehicleTypeTextActive,
+                        ]}
+                      >
+                        {type}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            </View>
+
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Delivery Address</Text>
+
+              {addresses.length === 0 ? (
                 <TouchableOpacity
-                  style={styles.addNewButton}
+                  style={styles.addButton}
                   onPress={handleAddAddress}
                 >
-                  <Plus size={16} color={colors.primary} />
-                  <Text style={styles.addNewButtonText}>Add New Address</Text>
+                  <MapPin size={20} color={colors.primary} />
+                  <Text style={styles.addButtonText}>Add Address</Text>
                 </TouchableOpacity>
-              </View>
-            )}
-          </View>
+              ) : (
+                <View style={styles.addressesContainer}>
+                  {addresses.map((address) => (
+                    <TouchableOpacity
+                      key={address.id}
+                      style={[
+                        styles.addressCard,
+                        selectedAddress === address.id && styles.selectedCard,
+                      ]}
+                      onPress={() => setSelectedAddress(address.id)}
+                    >
+                      <View style={styles.addressCardContent}>
+                        <MapPin
+                          size={20}
+                          color={
+                            selectedAddress === address.id
+                              ? colors.primary
+                              : colors.text
+                          }
+                          style={styles.addressIcon}
+                        />
+                        <View style={styles.addressDetails}>
+                          <Text style={styles.addressType}>
+                            {address.label === "other" && address.customLabel
+                              ? address.customLabel
+                              : address.label.charAt(0).toUpperCase() +
+                                address.label.slice(1)}
+                          </Text>
+                          <Text style={styles.addressText}>
+                            {address.street}
+                          </Text>
+                          <Text style={styles.addressText}>
+                            {address.city}, {address.state} {address.postalCode}
+                          </Text>
+                          {address.note && (
+                            <Text style={styles.addressText}>
+                              {address.note}
+                            </Text>
+                          )}
+                        </View>
+                      </View>
+                      <View
+                        style={[
+                          styles.radioButton,
+                          selectedAddress === address.id &&
+                            styles.radioButtonSelected,
+                        ]}
+                      >
+                        {selectedAddress === address.id && (
+                          <View style={styles.radioButtonInner} />
+                        )}
+                      </View>
+                    </TouchableOpacity>
+                  ))}
+
+                  <TouchableOpacity
+                    style={styles.addNewButton}
+                    onPress={handleAddAddress}
+                  >
+                    <MapPin size={16} color={colors.primary} />
+                    <Text style={styles.addNewButtonText}>Add New Address</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          </>
         )}
 
-        {serviceType === 'dine-in' && (
+        {serviceType === "dine-in" && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Table Number</Text>
             <View style={styles.tableNumberContainer}>
-              {['1', '2', '3', '4', '5', '6', '7', '8', '9', '10'].map((num) => (
+              {[
+                "1",
+                "2",
+                "3",
+                "4",
+                "5",
+                "6",
+                "7",
+                "8",
+                "9",
+                "10",
+              ].map((num) => (
                 <TouchableOpacity
                   key={num}
                   style={[
@@ -351,11 +547,18 @@ export default function CheckoutScreen() {
           </View>
         )}
 
-        {serviceType === 'pickup' && (
+        {serviceType === "pickup" && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Pickup Time</Text>
             <View style={styles.pickupTimeContainer}>
-              {['15 min', '30 min', '45 min', '1 hour', '1.5 hours', '2 hours'].map((time) => (
+              {[
+                "15 min",
+                "30 min",
+                "45 min",
+                "1 hour",
+                "1.5 hours",
+                "2 hours",
+              ].map((time) => (
                 <TouchableOpacity
                   key={time}
                   style={[
@@ -379,69 +582,8 @@ export default function CheckoutScreen() {
         )}
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Payment Method</Text>
-          
-          {paymentMethods.length === 0 ? (
-            <TouchableOpacity
-              style={styles.addButton}
-              onPress={handleAddPayment}
-            >
-              <Plus size={20} color={colors.primary} />
-              <Text style={styles.addButtonText}>Add Payment Method</Text>
-            </TouchableOpacity>
-          ) : (
-            <View style={styles.paymentMethodsContainer}>
-              {paymentMethods.map((payment) => (
-                <TouchableOpacity
-                  key={payment.id}
-                  style={[
-                    styles.paymentCard,
-                    selectedPayment === payment.id && styles.selectedCard,
-                  ]}
-                  onPress={() => setSelectedPayment(payment.id)}
-                >
-                  <View style={styles.paymentCardContent}>
-                    <CreditCard
-                      size={20}
-                      color={selectedPayment === payment.id ? colors.primary : colors.text}
-                      style={styles.paymentIcon}
-                    />
-                    <View style={styles.paymentDetails}>
-                      <Text style={styles.paymentType}>{payment.type}</Text>
-                      <Text style={styles.paymentText}>
-                        {payment.type === 'card' 
-                          ? `**** **** **** ${payment.last4 || payment.lastFourDigits || "****"}`
-                          : payment.phoneNumber || payment.number || ""}
-                      </Text>
-                    </View>
-                  </View>
-                  <View
-                    style={[
-                      styles.radioButton,
-                      selectedPayment === payment.id && styles.radioButtonSelected,
-                    ]}
-                  >
-                    {selectedPayment === payment.id && (
-                      <View style={styles.radioButtonInner} />
-                    )}
-                  </View>
-                </TouchableOpacity>
-              ))}
-              
-              <TouchableOpacity
-                style={styles.addNewButton}
-                onPress={handleAddPayment}
-              >
-                <Plus size={16} color={colors.primary} />
-                <Text style={styles.addNewButtonText}>Add New Payment Method</Text>
-              </TouchableOpacity>
-            </View>
-          )}
-        </View>
-
-        <View style={styles.section}>
           <Text style={styles.sectionTitle}>Order Items</Text>
-          
+
           <View style={styles.cartItemsContainer}>
             {cartItems.map((item) => (
               <View key={item.menuItemId} style={styles.checkoutItem}>
@@ -455,24 +597,28 @@ export default function CheckoutScreen() {
           </View>
         </View>
 
-        {serviceType !== 'dine-in' && (
+        {serviceType !== "dine-in" && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Tip for {serviceType === 'delivery' ? 'Delivery' : 'Service'}</Text>
-            
+            <Text style={styles.sectionTitle}>
+              Tip for {serviceType === "delivery" ? "Delivery" : "Service"}
+            </Text>
+
             <View style={styles.tipContainer}>
               {[0, 10, 20, 30, 50].map((amount) => (
                 <TouchableOpacity
                   key={amount}
                   style={[
                     styles.tipButton,
-                    tip === amount && styles.tipButtonSelected,
+                    tip === amount && !customTip && styles.tipButtonSelected,
                   ]}
                   onPress={() => handleTipChange(amount)}
                 >
                   <Text
                     style={[
                       styles.tipButtonText,
-                      tip === amount && styles.tipButtonTextSelected,
+                      tip === amount &&
+                        !customTip &&
+                        styles.tipButtonTextSelected,
                     ]}
                   >
                     {amount === 0 ? "No Tip" : `${amount} Birr`}
@@ -480,45 +626,63 @@ export default function CheckoutScreen() {
                 </TouchableOpacity>
               ))}
             </View>
+
+            <View style={styles.customTipContainer}>
+              <Text style={styles.customTipLabel}>Custom Tip Amount</Text>
+              <TextInput
+                style={styles.customTipInput}
+                placeholder="Enter custom tip amount"
+                placeholderTextColor={colors.lightText}
+                value={customTip}
+                onChangeText={handleCustomTipChange}
+                keyboardType="numeric"
+              />
+            </View>
           </View>
         )}
 
         <View style={styles.receiptContainer}>
           <Text style={styles.receiptTitle}>Order Summary</Text>
-          
+
           <View style={styles.receiptRow}>
             <Text style={styles.receiptLabel}>Subtotal</Text>
-            <Text style={styles.receiptValue}>{subtotal.toFixed(2)} Birr</Text>
+            <Text style={styles.receiptValue}>
+              {subtotal.toFixed(2)} Birr
+            </Text>
           </View>
-          
-          {serviceType === 'delivery' && (
+
+          {serviceType === "delivery" && (
             <View style={styles.receiptRow}>
               <Text style={styles.receiptLabel}>Delivery Fee</Text>
-              <Text style={styles.receiptValue}>{deliveryFee.toFixed(2)} Birr</Text>
+              <Text style={styles.receiptValue}>
+                {deliveryFee.toFixed(2)} Birr
+              </Text>
             </View>
           )}
-          
+
           <View style={styles.receiptRow}>
             <Text style={styles.receiptLabel}>Tax (15%)</Text>
             <Text style={styles.receiptValue}>{tax.toFixed(2)} Birr</Text>
           </View>
-          
-          {serviceType !== 'dine-in' && (
+
+          {serviceType !== "dine-in" && (
             <View style={styles.receiptRow}>
               <Text style={styles.receiptLabel}>Tip</Text>
               <Text style={styles.receiptValue}>{tip.toFixed(2)} Birr</Text>
             </View>
           )}
-          
+
           <View style={styles.receiptDivider} />
-          
+
           <View style={styles.receiptRow}>
             <Text style={styles.receiptTotalLabel}>Total</Text>
-            <Text style={styles.receiptTotalValue}>{total.toFixed(2)} Birr</Text>
+            <Text style={styles.receiptTotalValue}>
+              {total.toFixed(2)} Birr
+            </Text>
           </View>
         </View>
       </ScrollView>
-      
+
       <View style={styles.footer}>
         <View style={styles.totalContainer}>
           <Text style={styles.totalLabel}>Total</Text>
@@ -529,12 +693,11 @@ export default function CheckoutScreen() {
           onPress={handlePlaceOrder}
           loading={isProcessing}
           disabled={
-            isLoading || 
-            !selectedPayment || 
-            isProcessing || 
-            (serviceType === 'delivery' && !selectedAddress) ||
-            (serviceType === 'dine-in' && !tableNumber) ||
-            (serviceType === 'pickup' && !pickupTime)
+            isLoading ||
+            isProcessing ||
+            (serviceType === "delivery" && !selectedAddress) ||
+            (serviceType === "dine-in" && !tableNumber) ||
+            (serviceType === "pickup" && !pickupTime)
           }
           style={styles.placeOrderButton}
         />
@@ -634,6 +797,36 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
   serviceTypeTextActive: {
+    color: colors.white,
+  },
+  vehicleTypeContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  vehicleTypeButton: {
+    flex: 1,
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: colors.cardBackground,
+    borderRadius: 12,
+    padding: 16,
+    marginHorizontal: 4,
+    borderWidth: 1,
+    borderColor: colors.divider,
+  },
+  vehicleTypeButtonActive: {
+    backgroundColor: colors.primary,
+    borderColor: colors.primary,
+  },
+  vehicleTypeText: {
+    ...typography.bodySmall,
+    color: colors.text,
+    marginTop: 8,
+    fontWeight: "500",
+  },
+  vehicleTypeTextActive: {
     color: colors.white,
   },
   tableNumberContainer: {
@@ -775,41 +968,6 @@ const styles = StyleSheet.create({
     color: colors.primary,
     marginLeft: 8,
   },
-  paymentMethodsContainer: {
-    marginBottom: 8,
-  },
-  paymentCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    backgroundColor: colors.cardBackground,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: colors.divider,
-  },
-  paymentCardContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    flex: 1,
-  },
-  paymentIcon: {
-    marginRight: 12,
-  },
-  paymentDetails: {
-    flex: 1,
-  },
-  paymentType: {
-    ...typography.bodySmall,
-    color: colors.primary,
-    fontWeight: "600",
-    marginBottom: 4,
-  },
-  paymentText: {
-    ...typography.body,
-    color: colors.text,
-  },
   cartItemsContainer: {
     backgroundColor: colors.cardBackground,
     borderRadius: 12,
@@ -866,6 +1024,24 @@ const styles = StyleSheet.create({
   tipButtonTextSelected: {
     color: colors.primary,
     fontWeight: "600",
+  },
+  customTipContainer: {
+    marginTop: 16,
+  },
+  customTipLabel: {
+    ...typography.body,
+    color: colors.text,
+    marginBottom: 8,
+    fontWeight: "500",
+  },
+  customTipInput: {
+    backgroundColor: colors.cardBackground,
+    borderRadius: 8,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: colors.divider,
+    ...typography.body,
+    color: colors.text,
   },
   receiptContainer: {
     backgroundColor: colors.cardBackground,

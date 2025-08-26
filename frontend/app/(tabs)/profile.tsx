@@ -123,7 +123,7 @@ function ProfileContent() {
   const { user, logout } = useAuthStore();
   const { recipes } = useRecipeStore();
   const { addresses, paymentMethods } = useProfileStore();
-  const { orders } = useCartStore();
+  const { orders, getCartItemsCount } = useCartStore();
   const [activeTab, setActiveTab] = useState<"recipes" | "saved">("recipes");
   const [isLoadingProfile, setIsLoadingProfile] = useState(false);
   const [profileUser, setProfileUser] = useState<ExtendedUser | null>(null);
@@ -384,6 +384,19 @@ function ProfileContent() {
             </View>
             <ChevronRight size={20} color={colors.lightText} />
           </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={styles.menuItem}
+            onPress={() => router.push("/profile/chatbot")}
+          >
+            <View style={styles.menuItemLeft}>
+              <View style={styles.chatbotIcon}>
+                <Text style={styles.chatbotIconText}>🍲</Text>
+              </View>
+              <Text style={styles.menuItemText}>AI Cuisine Assistant</Text>
+            </View>
+            <ChevronRight size={20} color={colors.lightText} />
+          </TouchableOpacity>
         </View>
         
         {recentOrders.length > 0 && (
@@ -511,6 +524,19 @@ function ProfileContent() {
             ))}
         </View>
       </ScrollView>
+      
+      {/* Floating Cart Button - Only visible when there are items in cart */}
+      {getCartItemsCount() > 0 && (
+        <TouchableOpacity
+          style={styles.floatingCartButton}
+          onPress={() => router.push("/cart")}
+        >
+          <ShoppingBag size={24} color={colors.white} />
+          <View style={styles.cartBadge}>
+            <Text style={styles.cartBadgeText}>{getCartItemsCount()}</Text>
+          </View>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
@@ -744,5 +770,46 @@ const styles = StyleSheet.create({
   createButtonText: {
     ...typography.button,
     color: colors.white,
+  },
+  chatbotIcon: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: colors.primary,
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 12,
+  },
+  chatbotIconText: {
+    fontSize: 18,
+  },
+  floatingCartButton: {
+    position: 'absolute',
+    bottom: 20,
+    right: 20,
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
+    flexDirection: 'row',
+    zIndex: 10,
+  },
+  cartBadge: {
+    position: 'absolute',
+    top: -8,
+    right: -8,
+    backgroundColor: colors.error,
+    borderRadius: 10,
+    width: 20,
+    height: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  cartBadgeText: {
+    color: colors.white,
+    fontSize: 12,
+    fontWeight: 'bold',
   },
 });

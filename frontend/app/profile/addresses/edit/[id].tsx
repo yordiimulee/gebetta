@@ -25,6 +25,7 @@ export default function EditAddressScreen() {
       state: data.state,
       postalCode: data.postalCode,
       label: data.label,
+      customLabel: data.customLabel,
       isDefault: data.isDefault
     };
     
@@ -40,6 +41,7 @@ export default function EditAddressScreen() {
         state: address.state,
         postalCode: address.postalCode,
         label: address.label,
+        customLabel: address.customLabel,
         isDefault: address.isDefault
       }}
       onSubmit={handleSubmit}

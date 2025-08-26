@@ -4,6 +4,7 @@ export type AddressFormData = {
   state: string;
   postalCode: string;
   label: 'home' | 'work' | 'other';
+  customLabel?: string;
   isDefault: boolean;
 };
 

@@ -1,7 +1,7 @@
 import colors from "@/constants/colors";
 import typography from "@/constants/typography";
 import { MenuItem } from "@/types/restaurant";
-import { Minus, Plus, Trash2 } from "lucide-react-native";
+import { FontAwesome } from "@expo/vector-icons";
 import React, { useState } from "react";
 import {
   StyleSheet,
@@ -77,9 +77,9 @@ export default function CartItem({
             onPress={handleDecrement}
           >
             {quantity === 1 ? (
-              <Trash2 size={16} color={colors.error} />
+              <FontAwesome name="trash" size={16} color={colors.error} />
             ) : (
-              <Minus size={16} color={colors.text} />
+              <FontAwesome name="minus" size={16} color={colors.text} />
             )}
           </TouchableOpacity>
           
@@ -89,7 +89,7 @@ export default function CartItem({
             style={styles.quantityButton}
             onPress={handleIncrement}
           >
-            <Plus size={16} color={colors.text} />
+            <FontAwesome name="plus" size={16} color={colors.text} />
           </TouchableOpacity>
         </View>
       </View>

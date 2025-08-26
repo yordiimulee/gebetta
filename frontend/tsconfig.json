@@ -1,9 +1,10 @@
 {
-  "extends": "expo/tsconfig.base",
+  "extends": "@expo/tsconfig/tsconfig.base",
   "compilerOptions": {
     "strict": true,
     "esModuleInterop": true,
     "jsx": "react-native",
+    "module": "esnext",
     "moduleResolution": "bundler",
     "skipLibCheck": true,
     "baseUrl": ".",

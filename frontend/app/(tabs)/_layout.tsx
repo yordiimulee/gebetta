@@ -68,20 +68,6 @@ export default function TabsLayout() {
           }}
         />
         <Tabs.Screen
-          name="cart"
-          options={{
-            title: "Cart",
-            tabBarIcon: ({ color }) => <FontAwesome5 name="shopping-bag" size={24} color={color} />,
-          }}
-        />
-        <Tabs.Screen
-          name="chatbot"
-          options={{
-            title: "Chat",
-            tabBarIcon: ({ color }) => <FontAwesome5 name="comment-dots" size={24} color={color} />,
-          }}
-        />
-        <Tabs.Screen
           name="profile"
           options={{
             title: "Profile",

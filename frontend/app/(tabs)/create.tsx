@@ -1,14 +1,16 @@
 import colors from "@/constants/colors";
 import typography from "@/constants/typography";
 import { useAuthStore } from "@/store/authStore";
+import { useCartStore } from "@/store/cartStore";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
-import { ChevronRight } from "lucide-react-native";
+import { ChevronRight, ShoppingBag } from "lucide-react-native";
 import React from "react";
 import { StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 export default function CreateScreen() {
   const router = useRouter();
+  const { getCartItemsCount } = useCartStore();
   // const { isAuthenticated } = useAuthStore();
 
   const handleCreateRecipe = () => {
@@ -96,6 +98,19 @@ export default function CreateScreen() {
           </View>
         </View>
       </View>
+      
+      {/* Floating Cart Button - Only visible when there are items in cart */}
+      {getCartItemsCount() > 0 && (
+        <TouchableOpacity
+          style={styles.floatingCartButton}
+          onPress={() => router.push("/cart")}
+        >
+          <ShoppingBag size={24} color={colors.white} />
+          <View style={styles.cartBadge}>
+            <Text style={styles.cartBadgeText}>{getCartItemsCount()}</Text>
+          </View>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
@@ -215,5 +230,39 @@ const styles = StyleSheet.create({
   authButtonText: {
     ...typography.button,
     color: colors.white,
+  },
+  floatingCartButton: {
+    position: "absolute",
+    bottom: 20,
+    right: 20,
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    backgroundColor: colors.primary,
+    justifyContent: "center",
+    alignItems: "center",
+    elevation: 4,
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+  },
+  cartBadge: {
+    position: "absolute",
+    top: -8,
+    right: -8,
+    backgroundColor: colors.white,
+    borderRadius: 12,
+    width: 24,
+    height: 24,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: colors.primary,
+  },
+  cartBadgeText: {
+    color: colors.primary,
+    fontSize: 12,
+    fontWeight: "bold",
   },
 });
