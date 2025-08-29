@@ -99,6 +99,9 @@ export default function RootLayout() {
           <Stack.Screen name="profile/payment/index" options={{ headerShown: false, title: "Payment Methods" }} />
           <Stack.Screen name="profile/orders" options={{ headerShown: false, title: "My Orders" }} />
           <Stack.Screen name="settings" options={{ headerShown: false, title: "Settings" }} />
+          <Stack.Screen name="pin-setup" options={{ headerShown: false, title: "PIN Setup" }} />
+          <Stack.Screen name="change-pin" options={{ headerShown: false, title: "Change PIN" }} />
+          <Stack.Screen name="help-center" options={{ headerShown: false, title: "Help Center" }} />
           <Stack.Screen name="create-recipe" options={{ headerShown: false, title: "Create Recipe" }} />
           <Stack.Screen name="edit-recipe/[id]" options={{ headerShown: false, title: "Edit Recipe" }} />
         </>

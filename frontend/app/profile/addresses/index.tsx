@@ -78,6 +78,59 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: colors.border,
   },
+  mapInstructionBanner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F0F9FF',
+    marginHorizontal: 16,
+    marginVertical: 12,
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#BFDBFE',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+  },
+  mapIconContainer: {
+    width: 48,
+    height: 48,
+    backgroundColor: '#DBEAFE',
+    borderRadius: 24,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  mapInstructionContent: {
+    flex: 1,
+    marginRight: 12,
+  },
+  mapInstructionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1E40AF',
+    marginBottom: 4,
+  },
+  mapInstructionText: {
+    fontSize: 13,
+    color: '#374151',
+    lineHeight: 18,
+  },
+  quickAddButton: {
+    width: 36,
+    height: 36,
+    backgroundColor: '#3B82F6',
+    borderRadius: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 2,
+  },
 });
 
 // Mock addresses to be used if none exist in the store
@@ -87,8 +140,6 @@ const mockAddresses: AddressType[] = [
     id: 'home-1',
     street: 'Bole Road, House #123',
     city: 'Addis Ababa',
-    state: 'Addis Ababa',
-    postalCode: '1000',
     label: 'home',
     isDefault: true,
     note: 'Main residence - 3rd floor, Ring Road',
@@ -99,8 +150,6 @@ const mockAddresses: AddressType[] = [
     id: 'home-2',
     street: 'Megenagna, Condo #4B',
     city: 'Addis Ababa',
-    state: 'Addis Ababa',
-    postalCode: '1000',
     label: 'home',
     isDefault: false,
     note: 'Weekend house - Near Friendship Center',
@@ -112,8 +161,6 @@ const mockAddresses: AddressType[] = [
     id: 'work-1',
     street: 'Kazanchis Business District, 5th Floor',
     city: 'Addis Ababa',
-    state: 'Addis Ababa',
-    postalCode: '1000',
     label: 'work',
     isDefault: false,
     note: 'EthioTech Solutions HQ - Reception on 1st floor',
@@ -124,8 +171,6 @@ const mockAddresses: AddressType[] = [
     id: 'work-2',
     street: 'CMC Road, Building #42',
     city: 'Addis Ababa',
-    state: 'Addis Ababa',
-    postalCode: '1000',
     label: 'work',
     isDefault: false,
     note: 'Client site - Ask for security at main gate',
@@ -136,8 +181,6 @@ const mockAddresses: AddressType[] = [
     id: 'work-3',
     street: 'Bole Road, Dembel City Center, 7th Floor',
     city: 'Addis Ababa',
-    state: 'Addis Ababa',
-    postalCode: '1000',
     label: 'work',
     isDefault: false,
     note: 'Co-working space - Available 24/7 with access card',
@@ -149,8 +192,6 @@ const mockAddresses: AddressType[] = [
     id: 'other-1',
     street: 'Sarbet District, Near Edna Mall',
     city: 'Addis Ababa',
-    state: 'Addis Ababa',
-    postalCode: '1000',
     label: 'other',
     isDefault: false,
     note: 'Spa & Wellness Center - Open 9AM-9PM',
@@ -161,8 +202,6 @@ const mockAddresses: AddressType[] = [
     id: 'other-2',
     street: 'Bole Atlas, Behind DH Geda Tower',
     city: 'Addis Ababa',
-    state: 'Addis Ababa',
-    postalCode: '1000',
     label: 'other',
     isDefault: false,
     note: 'Friend\'s apartment - Call before visiting',
@@ -173,8 +212,6 @@ const mockAddresses: AddressType[] = [
     id: 'other-3',
     street: '4 Kilo, Arat Kilo Cultural Center',
     city: 'Addis Ababa',
-    state: 'Addis Ababa',
-    postalCode: '1000',
     label: 'other',
     isDefault: false,
     note: 'Weekly coffee meetup - Every Saturday 4PM',
@@ -327,6 +364,25 @@ export default function AddressesScreen() {
         <Text style={styles.title}>My Addresses</Text>
       </View>
 
+      {/* Map Pin Instructions Banner */}
+      <View style={styles.mapInstructionBanner}>
+        <View style={styles.mapIconContainer}>
+          <MaterialIcons name="location-on" size={24} color="#3B82F6" />
+        </View>
+        <View style={styles.mapInstructionContent}>
+          <Text style={styles.mapInstructionTitle}>📍 Pin Your Location</Text>
+          <Text style={styles.mapInstructionText}>
+            Tap the + button to add new addresses
+          </Text>
+        </View>
+        <TouchableOpacity 
+          style={styles.quickAddButton}
+          onPress={handleAddAddress}
+        >
+          <MaterialIcons name="add" size={20} color="#FFFFFF" />
+        </TouchableOpacity>
+      </View>
+
       {displayAddresses.length === 0 ? (
         <View style={styles.emptyContainer}>
           <MaterialIcons
@@ -406,7 +462,7 @@ export default function AddressesScreen() {
                     </View>
                     
                     <Text style={[typography.body2, { color: colors.lightText, marginTop: 4 }]}>
-                      {`${address.city}, ${address.state} ${address.postalCode}`}
+                      {address.city}
                     </Text>
                     
                     <View 

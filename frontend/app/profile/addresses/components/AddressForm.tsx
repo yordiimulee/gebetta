@@ -55,10 +55,8 @@ interface Styles {
 
 export function AddressForm({ onSubmit, initialData }: AddressFormProps) {
   const addressSchema = z.object({
-    street: z.string().min(1, 'Street is required'),
-    city: z.string().min(1, 'City is required'),
-    state: z.string().min(1, 'State is required'),
-    postalCode: z.string().min(1, 'Postal Code is required'),
+    street: z.string().min(1, 'Name is required'),
+    city: z.string().min(1, 'Label is required'),
     label: z.enum(['home', 'work', 'other']),
     customLabel: z.string().optional(),
     isDefault: z.boolean()
@@ -69,8 +67,6 @@ export function AddressForm({ onSubmit, initialData }: AddressFormProps) {
     defaultValues: initialData || {
       street: '',
       city: '',
-      state: '',
-      postalCode: '',
       label: 'home',
       customLabel: '',
       isDefault: false
@@ -92,7 +88,7 @@ export function AddressForm({ onSubmit, initialData }: AddressFormProps) {
         render={({ field: { onChange, value } }) => (
           <TextInput
             style={styles.input}
-            placeholder="Street"
+            placeholder="Name"
             value={value}
             onChangeText={onChange}
           />
@@ -104,36 +100,13 @@ export function AddressForm({ onSubmit, initialData }: AddressFormProps) {
         render={({ field: { onChange, value } }) => (
           <TextInput
             style={styles.input}
-            placeholder="City"
+            placeholder="Label"
             value={value}
             onChangeText={onChange}
           />
         )}
       />
-      <Controller
-        control={control}
-        name="state"
-        render={({ field: { onChange, value } }) => (
-          <TextInput
-            style={styles.input}
-            placeholder="State"
-            value={value}
-            onChangeText={onChange}
-          />
-        )}
-      />
-      <Controller
-        control={control}
-        name="postalCode"
-        render={({ field: { onChange, value } }) => (
-          <TextInput
-            style={styles.input}
-            placeholder="Postal Code"
-            value={value}
-            onChangeText={onChange}
-          />
-        )}
-      />
+
       <Controller
         control={control}
         name="label"

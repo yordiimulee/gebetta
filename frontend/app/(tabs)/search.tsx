@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   StyleSheet,
   View,
@@ -8,9 +8,14 @@ import {
   TouchableOpacity,
   Platform,
   Dimensions,
+  Animated,
+  StatusBar,
+  TextInput,
 } from "react-native";
 import { useRouter } from "expo-router";
-import { Settings, ChevronDown, ShoppingBag } from "lucide-react-native";
+import { Settings, ChevronDown, ShoppingBag, Search, X } from "lucide-react-native";
+import { FontAwesome5 } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import colors from "@/constants/colors";
 import typography from "@/constants/typography";
 import SearchBar from "@/components/SearchBar";
@@ -61,10 +66,61 @@ export default function SearchScreen() {
   const { width } = Dimensions.get("window");
   const isTablet = width > 768;
 
+  // Animation values
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(50)).current;
+  const headerAnim = useRef(new Animated.Value(0)).current;
+  const filterAnim = useRef(new Animated.Value(0)).current;
+  const resultsAnim = useRef(new Animated.Value(0)).current;
+
   useEffect(() => {
     // Apply sorting when selected option changes
     sortRecipes(selectedSort);
   }, [selectedSort, sortRecipes]);
+
+  // Initialize animations
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.timing(headerAnim, {
+        toValue: 1,
+        duration: 700,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
+
+  // Animate results when they change
+  useEffect(() => {
+    resultsAnim.setValue(0);
+    Animated.timing(resultsAnim, {
+      toValue: 1,
+      duration: 400,
+      useNativeDriver: true,
+    }).start();
+  }, [filteredRecipes]);
+
+  // Animate filters
+  useEffect(() => {
+    if (showFilters) {
+      Animated.timing(filterAnim, {
+        toValue: 1,
+        duration: 300,
+        useNativeDriver: false,
+      }).start();
+    } else {
+      filterAnim.setValue(0);
+    }
+  }, [showFilters]);
 
   const handleClearSearch = () => {
     setSearchQuery("");
@@ -119,14 +175,34 @@ export default function SearchScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.searchHeader}>
-        <View style={{ flex: 1, marginRight: 8 }}>
-          <SearchBar
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            onClear={handleClearSearch}
-            placeholder="Search recipes..."        
-          />
+      <StatusBar barStyle="dark-content" backgroundColor={colors.background} />
+      
+      {/* Search Header */}
+      <Animated.View
+        style={[
+          styles.searchHeader,
+          {
+            opacity: fadeAnim,
+            transform: [{ translateY: slideAnim }],
+          },
+        ]}
+      >
+        <View style={styles.searchContainer}>
+          <View style={styles.searchBarCustom}>
+            <Search size={20} color={colors.lightText} style={styles.searchIcon} />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search for delicious recipes..."
+              placeholderTextColor={colors.lightText}
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+            />
+            {searchQuery.length > 0 && (
+              <TouchableOpacity onPress={handleClearSearch} style={styles.clearButton}>
+                <X size={18} color={colors.lightText} />
+              </TouchableOpacity>
+            )}
+          </View>
         </View>
         <TouchableOpacity
           style={[
@@ -135,7 +211,8 @@ export default function SearchScreen() {
           ]}
           onPress={toggleFilters}
         >
-          <Settings
+          <FontAwesome5
+            name="filter"
             size={20}
             color={
               selectedTag || selectedRegion || selectedDifficulty || maxTime
@@ -144,11 +221,25 @@ export default function SearchScreen() {
             }
           />
         </TouchableOpacity>
-
-      </View>
+      </Animated.View>
 
       {showFilters && (
-        <View style={styles.filtersContainer}>
+        <Animated.View
+          style={[
+            styles.filtersContainer,
+            {
+              opacity: filterAnim,
+              transform: [
+                {
+                  translateY: filterAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [-20, 0],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
           <View style={styles.filterSection}>
             <View style={styles.filterHeader}>
               <Text style={styles.filterTitle}>Categories</Text>
@@ -299,44 +390,90 @@ export default function SearchScreen() {
             style={styles.clearAllButton}
             onPress={clearAllFilters}
           >
-            <Text style={styles.clearAllText}>Clear All Filters</Text>
+            <Text style={styles.clearAllText}>🗑️ Clear All Filters</Text>
           </TouchableOpacity>
-        </View>
+        </Animated.View>
       )}
 
       {filteredRecipes.length > 0 ? (
-        <FlatList
-          data={filteredRecipes}
-          keyExtractor={(item) => item.id}
-          renderItem={({ item }) => <RecipeCard recipe={item} />}
-          contentContainerStyle={styles.recipesList}
-          showsVerticalScrollIndicator={false}
-          numColumns={isTablet ? 2 : 1}
-          key={isTablet ? "two-column" : "one-column"}
-          columnWrapperStyle={
-            isTablet ? { justifyContent: "space-between" } : undefined
-          }
-        />
+        <Animated.View
+          style={[
+            styles.resultsContainer,
+            {
+              opacity: resultsAnim,
+              transform: [
+                {
+                  translateY: resultsAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [30, 0],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
+
+          <FlatList
+            data={filteredRecipes}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => <RecipeCard recipe={item} />}
+            contentContainerStyle={styles.recipesList}
+            showsVerticalScrollIndicator={false}
+            numColumns={1}
+          />
+        </Animated.View>
       ) : (
-        <View style={styles.emptyContainer}>
+        <Animated.View
+          style={[
+            styles.emptyContainer,
+            {
+              opacity: resultsAnim,
+              transform: [{ scale: resultsAnim }],
+            },
+          ]}
+        >
+          <Text style={styles.emptyIcon}>🔍</Text>
           <Text style={styles.emptyTitle}>No recipes found</Text>
           <Text style={styles.emptyText}>
             Try adjusting your search or filters to find what you're looking for
           </Text>
-        </View>
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={clearAllFilters}
+          >
+            <Text style={styles.retryButtonText}>🔄 Clear Filters & Try Again</Text>
+          </TouchableOpacity>
+        </Animated.View>
       )}
       
-      {/* Floating Cart Button - Only visible when there are items in cart */}
+      {/* Enhanced Floating Cart Button */}
       {getCartItemsCount() > 0 && (
-        <TouchableOpacity
-          style={styles.floatingCartButton}
-          onPress={() => router.push("/cart")}
+        <Animated.View
+          style={[
+            styles.floatingCartButton,
+            {
+              opacity: fadeAnim,
+              transform: [
+                {
+                  scale: fadeAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0.5, 1],
+                  }),
+                },
+              ],
+            },
+          ]}
         >
-          <ShoppingBag size={24} color={colors.white} />
-          <View style={styles.cartBadge}>
-            <Text style={styles.cartBadgeText}>{getCartItemsCount()}</Text>
-          </View>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.cartButtonContent}
+            onPress={() => router.push("/cart")}
+          >
+            <ShoppingBag size={24} color={colors.white} />
+            <View style={styles.cartBadge}>
+              <Text style={styles.cartBadgeText}>{getCartItemsCount()}</Text>
+            </View>
+          </TouchableOpacity>
+        </Animated.View>
       )}
     </View>
   );
@@ -346,14 +483,63 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
-    padding: 20,
+  },
+  headerContainer: {
+    zIndex: 1,
+  },
+  headerGradient: {
+    paddingTop: Platform.OS === 'ios' ? 50 : 30,
+    paddingBottom: 20,
+    paddingHorizontal: 20,
+  },
+  headerContent: {
+    alignItems: 'center',
+  },
+  headerTitle: {
+    ...typography.heading2,
+    color: colors.white,
+    fontWeight: '700',
+    marginBottom: 4,
+  },
+  headerSubtitle: {
+    ...typography.body,
+    color: colors.white,
+    opacity: 0.9,
   },
   searchHeader: {
     flexDirection: "row",
-    justifyContent: "center",
-    marginBottom: 10,
-    paddingHorizontal: 18,
-    width: "100%",
+    alignItems: "center",
+    marginBottom: 16,
+    paddingHorizontal: 20,
+    paddingTop: Platform.OS === 'ios' ? 50 : 35,
+    paddingBottom: 8,
+    backgroundColor: colors.background,
+  },
+  searchContainer: {
+    flex: 1,
+    marginRight: 12,
+  },
+  searchBarCustom: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: colors.inputBackground,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    height: 40,
+  },
+  searchIcon: {
+    marginRight: 8,
+  },
+  searchInput: {
+    ...typography.body,
+    flex: 1,
+    color: colors.text,
+    padding: 0,
+    height: '100%',
+  },
+  clearButton: {
+    padding: 4,
   },
   filterSortContainer: {
     flexDirection: "row",
@@ -361,16 +547,22 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   filterButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 14,
-    borderWidth: StyleSheet.hairlineWidth,
+    width: 48,
+    height: 40,
+    borderRadius: 12,
+    backgroundColor: colors.white,
     justifyContent: "center",
     alignItems: "center",
-    marginLeft: 12,
+    elevation: 4,
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   activeFilterButton: {
     backgroundColor: colors.primary,
+    elevation: 6,
+    shadowOpacity: 0.2,
   },
   sortButton: {
     flexDirection: "row",
@@ -411,14 +603,26 @@ const styles = StyleSheet.create({
   },
   filtersContainer: {
     backgroundColor: colors.white,
-    borderRadius: 16,
-    padding: 16,
+    borderRadius: 20,
+    padding: 20,
+    marginHorizontal: 20,
     marginBottom: 16,
-    elevation: 2,
+    elevation: 8,
     shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+  },
+  resultsContainer: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+  resultsCount: {
+    ...typography.body,
+    color: colors.primary,
+    fontWeight: '600',
+    marginBottom: 16,
+    textAlign: 'center',
   },
   filterSection: {
     marginBottom: 16,
@@ -506,16 +710,39 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    padding: 20,
+    padding: 40,
+  },
+  emptyIcon: {
+    fontSize: 64,
+    marginBottom: 16,
   },
   emptyTitle: {
     ...typography.heading3,
-    marginBottom: 8,
+    marginBottom: 12,
+    textAlign: 'center',
   },
   emptyText: {
     ...typography.body,
     color: colors.lightText,
     textAlign: "center",
+    marginBottom: 24,
+    lineHeight: 24,
+  },
+  retryButton: {
+    backgroundColor: colors.primary,
+    paddingVertical: 12,
+    paddingHorizontal: 24,
+    borderRadius: 25,
+    elevation: 4,
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  retryButtonText: {
+    ...typography.body,
+    color: colors.white,
+    fontWeight: '600',
   },
   cartButton: {
     position: "absolute",
@@ -548,15 +775,21 @@ const styles = StyleSheet.create({
   },
   floatingCartButton: {
     position: "absolute",
-    bottom: 20,
+    bottom: 30,
     right: 20,
-    width: 56,
-    height: 56,
-    borderRadius: 28,
+    zIndex: 10,
+  },
+  cartButtonContent: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
     backgroundColor: colors.primary,
     justifyContent: "center",
     alignItems: "center",
-    flexDirection: "row",
-    zIndex: 10,
+    elevation: 8,
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
   },
 });

@@ -13,7 +13,7 @@ import {
 interface ButtonProps {
   title: string;
   onPress: () => void;
-  variant?: "primary" | "secondary" | "outline" | "text";
+  variant?: "primary" | "secondary" | "outline" | "text" | "white";
   size?: "small" | "medium" | "large";
   disabled?: boolean;
   loading?: boolean;
@@ -84,6 +84,9 @@ const styles = StyleSheet.create({
   secondary: {
     backgroundColor: colors.secondary,
   },
+  white: {
+    backgroundColor: colors.white,
+  },
   outline: {
     backgroundColor: "transparent",
     borderWidth: 1,
@@ -116,6 +119,9 @@ const styles = StyleSheet.create({
   },
   secondaryText: {
     color: colors.text,
+  },
+  whiteText: {
+    color: colors.black,
   },
   outlineText: {
     color: colors.primary,

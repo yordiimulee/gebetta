@@ -1,8 +1,6 @@
 export type AddressFormData = {
   street: string;
   city: string;
-  state: string;
-  postalCode: string;
   label: 'home' | 'work' | 'other';
   customLabel?: string;
   isDefault: boolean;

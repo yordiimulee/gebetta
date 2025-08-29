@@ -11,7 +11,7 @@ import { Recipe } from "@/types/recipe";
 import { Restaurant } from "@/types/restaurant";
 import { Image } from "expo-image";
 import { useRouter } from "expo-router";
-import { ChevronRight, MapPin, Clock, ShoppingBag } from "lucide-react-native";
+import { ChevronRight, MapPin, Clock, ShoppingBag, Search } from "lucide-react-native";
 import React, { useState, useCallback, useEffect } from "react";
 import * as Location from 'expo-location';
 import axios from "axios";
@@ -19,6 +19,7 @@ import axios from "axios";
 import { StatusBar } from "expo-status-bar";
 import {
   ActivityIndicator,
+  Animated,
   Dimensions,
   FlatList,
   RefreshControl,
@@ -28,6 +29,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 
 // Convert API restaurant to app's Restaurant type
 function toAppRestaurant(apiRestaurant: any): Restaurant {
@@ -80,9 +82,10 @@ function toAppRestaurant(apiRestaurant: any): Restaurant {
   };
 }
 
+const { width } = Dimensions.get("window");
+
 export default function HomeScreen() {
   const router = useRouter();
-  const { width } = Dimensions.get("window");
   const isTablet = width > 768;
   
   const { user, setUser } = useAuthStore();
@@ -95,6 +98,12 @@ export default function HomeScreen() {
   const [featuredRecipes, setFeaturedRecipes] = useState<Recipe[]>([]);
   const [realRestaurants, setRealRestaurants] = useState<Restaurant[]>([]);
   const [isLoadingRealRestaurants, setIsLoadingRealRestaurants] = useState(true);
+  
+  // Animation values for enhanced UI
+  const fadeAnim = React.useRef(new Animated.Value(0)).current;
+  const slideAnim = React.useRef(new Animated.Value(30)).current;
+  const headerAnim = React.useRef(new Animated.Value(0)).current;
+  const cardAnim = React.useRef(new Animated.Value(0)).current;
 
   
   // Fetch real restaurants from API
@@ -159,6 +168,31 @@ export default function HomeScreen() {
   // Fetch real restaurants on component mount
   useEffect(() => {
     fetchRealRestaurants();
+    
+    // Start entrance animations
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 1000,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.timing(headerAnim, {
+        toValue: 1,
+        duration: 1200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(cardAnim, {
+        toValue: 1,
+        duration: 800,
+        delay: 400,
+        useNativeDriver: true,
+      }),
+    ]).start();
   }, []);
   
   const featuredRecipe = recipes[0];
@@ -224,111 +258,134 @@ export default function HomeScreen() {
   return (
     <>
     <StatusBar style="light" />
-    <ScrollView
-      style={styles.container}
-      showsVerticalScrollIndicator={false}
-      refreshControl={
-        <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-      }
-    >
-      <View style={styles.header}>
-        <View>
-          <Text style={styles.greeting}>
-            Hello, {user?.firstName ? user.firstName : "Guest"}
-          </Text>
-          <Text style={styles.subtitle}>
-            {user?.addresses?.find(addr => addr.isDefault)?.Name || "What would you like to explore today?"}
-          </Text>
-          <TouchableOpacity
-            onPress={async () => {
-              try {
-                console.log('Requesting location permissions...');
-                const { status } = await Location.requestForegroundPermissionsAsync();
-                console.log('Location permission status:', status);
+    <View style={styles.container}>
+      {/* Sticky Search Bar with Location and Profile Avatar */}
+      <Animated.View 
+        style={[
+          styles.stickySearchContainer,
+          {
+            opacity: fadeAnim,
+            transform: [{ translateY: slideAnim }]
+          }
+        ]}
+      >
+        {/* Location Button */}
+        <TouchableOpacity
+          style={styles.topLocationButton}
+          onPress={async () => {
+            try {
+              console.log('Requesting location permissions...');
+              const { status } = await Location.requestForegroundPermissionsAsync();
+              console.log('Location permission status:', status);
+              
+              if (status === "granted") {
+                console.log('Getting current position...');
+                const location = await Location.getCurrentPositionAsync({});
+                console.log('Got location:', location);
                 
-                if (status === "granted") {
-                  console.log('Getting current position...');
-                  const location = await Location.getCurrentPositionAsync({});
-                  console.log('Got location:', location);
+                console.log('Reverse geocoding...');
+                const geocode = await Location.reverseGeocodeAsync(location.coords);
+                console.log('Geocode results:', geocode);
+                
+                if (geocode && geocode.length > 0) {
+                  const { city, region } = geocode[0];
+                  const locationString = `${city || ''}${city && region ? ', ' : ''}${region || ''}`.trim();
+                  console.log('Formatted location string:', locationString);
                   
-                  console.log('Reverse geocoding...');
-                  const geocode = await Location.reverseGeocodeAsync(location.coords);
-                  console.log('Geocode results:', geocode);
-                  
-                  if (geocode && geocode.length > 0) {
-                    const { city, region } = geocode[0];
-                    const locationString = `${city || ''}${city && region ? ', ' : ''}${region || ''}`.trim();
-                    console.log('Formatted location string:', locationString);
-                    
-                    if (!user) {
-                      console.error('No user object found');
-                      return;
-                    }
-                    
-                    // Create a new default address with the location
-                    const newAddress = {
-                      label: 'Home' as const,
-                      Name: locationString,
-                      isDefault: true,
-                      coordinates: {
-                        lat: location.coords.latitude,
-                        lng: location.coords.longitude
-                      }
-                    };
-                    
-                    // Keep existing non-default addresses
-                    const otherAddresses = user.addresses?.filter(addr => !addr.isDefault) || [];
-                    
-                    // Update the user with the new default address
-                    const updatedUser = {
-                      ...user,
-                      addresses: [newAddress, ...otherAddresses]
-                    };
-                    
-                    console.log('Updating user with new address:', updatedUser);
-                    await setUser(updatedUser);
-                    console.log('User updated successfully');
-                  } else {
-                    console.warn('No geocode results found');
+                  if (!user) {
+                    console.error('No user object found');
+                    return;
                   }
+                  
+                  // Create a new default address with the location
+                  const newAddress = {
+                    _id: `addr_${Date.now()}`,
+                    Name: locationString,
+                    isDefault: true,
+                    ...getDefaultAddressStructure([location.coords.longitude, location.coords.latitude])
+                  };
+                  
+                  console.log('New address to add:', newAddress);
+                  
+                  // Update user with new address
+                  const updatedUser = {
+                    ...user,
+                    addresses: [newAddress, ...(user.addresses || []).map(addr => ({ ...addr, isDefault: false }))]
+                  };
+                  
+                  await setUser(updatedUser);
+                  console.log('User updated successfully');
                 } else {
-                  console.warn('Location permission denied');
+                  console.warn('No geocode results found');
                 }
-              } catch (error) {
-                console.error('Error in location handling:', error);
+              } else {
+                console.warn('Location permission denied');
               }
-            }}
-          >
-            <Text style={styles.locationButton}>
-              {user?.addresses?.find(addr => addr.isDefault)?.Name 
-                ? `Current: ${user.addresses.find(addr => addr.isDefault)?.Name}`
-                : "Use current location"}
-            </Text>
-          </TouchableOpacity>
-        </View>
-        <View style={styles.headerRight}>
-          
-          <TouchableOpacity onPress={() => router.push("/profile")}>
+            } catch (error) {
+              console.error('Error in location handling:', error);
+            }
+          }}
+        >
+          <Text style={styles.topLocationText}>
+            📍 {user?.addresses?.find(addr => addr.isDefault)?.Name 
+              ? `${user.addresses.find(addr => addr.isDefault)?.Name}`
+              : "Use current location"}
+          </Text>
+        </TouchableOpacity>
+
+        <View style={styles.searchBarRow}>
+          <View style={styles.searchBar}>
+            <Search size={20} color={colors.lightText} style={styles.searchIcon} />
+            <Text style={styles.searchPlaceholder}>Search for recipes, restaurants...</Text>
+          </View>
+          <TouchableOpacity onPress={() => router.push("/profile")} style={styles.topAvatarContainer}>
             <Image
               source={{ uri: user?.profilePicture || "https://images.unsplash.com/photo-1531123897727-8f129e1688ce?q=80&w=200" }}
-              style={styles.avatar}
+              style={styles.topAvatar}
             />
           </TouchableOpacity>
         </View>
-      </View>
+      </Animated.View>
+
+      <ScrollView
+        style={styles.scrollContainer}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+      >
+       {/* Header */}
+       <View style={styles.headerGradient}>
+         <Animated.View 
+           style={[
+             styles.header,
+             {
+               opacity: headerAnim,
+               transform: [{ translateY: headerAnim.interpolate({
+                 inputRange: [0, 1],
+                 outputRange: [-20, 0]
+               })}]
+             }
+           ]}
+         >
+
+
+         </Animated.View>
+       </View>
 
 
 
       {/* Featured Recipe */}
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Featured Recipe</Text>
+          <Text style={[styles.sectionTitle, styles.sectionTitleInHeader]}>Featured Recipe</Text>
           <View style={styles.rotationIndicator}>
             <TouchableOpacity 
               onPress={() => setFeaturedRecipes(getRandomRecipes(1))}
               style={styles.refreshButton}
             >
-              <Text style={styles.seeAll}>Refresh</Text>
+              <Text style={styles.seeAll}>🔄 Refresh</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -384,8 +441,8 @@ export default function HomeScreen() {
                            {/* Popular Recipes */}
         <View style={styles.popularContainer}>
           <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>
-              {selectedCategory ? `${selectedCategory} Recipes` : "Popular Recipes"}
+            <Text style={[styles.sectionTitle, styles.sectionTitleInHeader]}>
+              {selectedCategory ? `${selectedCategory} Recipes` : "🔥 Popular Recipes"}
             </Text>
             <TouchableOpacity
               style={styles.seeAllButton}
@@ -440,8 +497,8 @@ export default function HomeScreen() {
        {/* Featured Restaurants */}
        <View style={styles.restaurantsContainer}>
          <View style={styles.sectionHeader}>
-           <Text style={styles.sectionTitle}>
-             {selectedCategory ? `${selectedCategory} Restaurants` : "Popular Restaurants"}
+           <Text style={[styles.sectionTitle, styles.sectionTitleInHeader]}>
+             {selectedCategory ? `${selectedCategory} Restaurants` : "🍽️ Popular Restaurants"}
            </Text>
            <TouchableOpacity
              style={styles.seeAllButton}
@@ -487,20 +544,21 @@ export default function HomeScreen() {
            scrollEnabled={false}
          />
        </View>
-    </ScrollView>
-    
-    {/* Floating Cart Button - Only visible when there are items in cart */}
-    {getCartItemsCount() > 0 && (
-      <TouchableOpacity
-        style={styles.floatingCartButton}
-        onPress={() => router.push("/cart")}
-      >
-        <ShoppingBag size={24} color={colors.white} />
-        <View style={styles.cartBadge}>
-          <Text style={styles.cartBadgeText}>{getCartItemsCount()}</Text>
-        </View>
-      </TouchableOpacity>
-    )}
+      </ScrollView>
+      
+      {/* Floating Cart Button - Only visible when there are items in cart */}
+      {getCartItemsCount() > 0 && (
+        <TouchableOpacity
+          style={styles.floatingCartButton}
+          onPress={() => router.push("/cart")}
+        >
+          <ShoppingBag size={24} color={colors.white} />
+          <View style={styles.cartBadge}>
+            <Text style={styles.cartBadgeText}>{getCartItemsCount()}</Text>
+          </View>
+        </TouchableOpacity>
+      )}
+    </View>
     </>
   );
 }
@@ -509,7 +567,50 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
-    // paddingHorizontal: 7,w
+  },
+  scrollContainer: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingTop: 90, // Space for sticky search bar with location
+  },
+  stickySearchContainer: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    zIndex: 10,
+    backgroundColor: colors.background,
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: width > 768 ? 16 : 12,
+    elevation: 4,
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  searchBarRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  topAvatarContainer: {
+    padding: 2,
+  },
+  topAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+  },
+  topLocationButton: {
+    marginBottom: 8,
+    alignSelf: 'flex-start',
+  },
+  topLocationText: {
+    ...typography.bodySmall,
+    color: colors.primary,
+    fontWeight: '600',
   },
   loadingContainer: {
     flex: 1,
@@ -522,13 +623,15 @@ const styles = StyleSheet.create({
     marginTop: 16,
     color: colors.lightText,
   },
+  headerGradient: {
+    paddingTop: 20,
+    paddingBottom: 12,
+    paddingHorizontal: 20,
+  },
   header: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 16,
   },
   headerRight: {
     flexDirection: 'row',
@@ -558,10 +661,12 @@ const styles = StyleSheet.create({
   greeting: {
     ...typography.heading3,
     marginBottom: 4,
+    color: colors.white,
   },
   subtitle: {
     ...typography.body,
-    color: colors.lightText,
+    color: colors.white,
+    opacity: 0.9,
   },
   avatar: {
     width: 48,
@@ -570,22 +675,26 @@ const styles = StyleSheet.create({
   },
   featuredContainer: {
     paddingHorizontal: 20,
-    marginBottom: 24,
+    marginBottom: width > 768 ? 24 : 16,
   },
   categoriesContainer: {
-    marginBottom: 24,
+    marginBottom: width > 768 ? 24 : 16,
   },
   sectionTitle: {
     ...typography.heading3,
-    marginBottom: 16,
+    marginBottom: width > 768 ? 16 : 12,
     paddingHorizontal: 20,
+  },
+  sectionTitleInHeader: {
+    paddingHorizontal: 0,
+    marginBottom: 0,
   },
   categoriesScrollContent: {
     paddingHorizontal: 20,
     paddingBottom: 8,
   },
   restaurantsContainer: {
-    marginBottom: 24,
+    marginBottom: width > 768 ? 24 : 16,
   },
   restaurantsScrollContent: {
     paddingHorizontal: 20,
@@ -610,7 +719,7 @@ const styles = StyleSheet.create({
   },
   recipeImage: {
     width: "100%",
-    height: 160,
+    height: width > 768 ? 160 : 130,
   },
   recipeInfo: {
     padding: 6,
@@ -622,169 +731,170 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   recipeMeta: {
-    gap: 8,
-  },
-  restaurantCard: {
-    width: "100%",
-    backgroundColor: colors.white,
-    borderRadius: 12,
-    overflow: "hidden",
-    shadowColor: colors.black,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    elevation: 3,
     flexDirection: 'row',
-  },
-  restaurantImage: {
-    width: 120,
-    height: 120,
-  },
-  restaurantInfo: {
-    padding: 12,
-    flex: 1,
-    justifyContent: 'center',
-  },
-  restaurantName: {
-    ...typography.heading4,
-    marginRight: 8,
-  },
-  restaurantMeta: {
-    gap: 8,
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   ratingContainer: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
   },
   ratingText: {
     ...typography.bodySmall,
-    fontWeight: "600",
-    marginLeft: 4,
+    color: colors.secondary,
+    fontWeight: '500',
   },
   locationContainer: {
-    flexDirection: "row",
-    alignItems: "center",
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    flex: 1,
   },
   locationText: {
-    ...typography.caption,
-    color: colors.lightText,
-    marginLeft: 4,
-    flex: 1,
-  },
-  popularContainer: {
-    marginBottom: 24,
-    paddingHorizontal: 5,
-  },
-  sectionHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingRight: 20,
-    marginBottom: 16,
-  },
-  seeAllButton: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  seeAllText: {
     ...typography.bodySmall,
-    color: colors.primary,
-    fontWeight: "600",
-  },
-  seeAll: {
-    ...typography.body2,
-    color: colors.primary,
-  },
-  section: {
-    marginBottom: 24,
-    width: '100%',
-    maxWidth: 1200,
-    alignSelf: 'center',
-    paddingHorizontal: 16,
-  },
-  horizontalScroll: {
-    paddingHorizontal: 12,
-  },
-  featuredRecipeCard: {
-    flex: 1,
-    maxWidth: 800,
-    marginHorizontal: 16,
-  },
-  rotationIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  rotationText: {
-    ...typography.caption,
     color: colors.lightText,
+    flex: 1,
   },
-  refreshButton: {
-    padding: 4,
-  },
-  singleRecipeContainer: {
+  restaurantCard: {
     flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    // paddingHorizontal: 20,
-    width: '100%',
-    maxWidth: 1000,
-    alignSelf: 'center',
-  },
-  navButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    justifyContent: 'center',
-    alignItems: 'center',
     backgroundColor: colors.white,
+    borderRadius: 12,
+    marginHorizontal: 20,
+    padding: 12,
     shadowColor: colors.black,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
-    elevation: 2,
-    marginHorizontal: 8,
+    elevation: 3,
   },
-  navButtonText: {
-    fontSize: 24,
+  restaurantImage: {
+    width: 80,
+    height: 80,
+    borderRadius: 8,
+    marginRight: 12,
+  },
+  restaurantInfo: {
+    flex: 1,
+    justifyContent: 'space-between',
+  },
+  restaurantName: {
+    ...typography.heading4,
+    marginBottom: 4,
+    fontSize: 16,
     fontWeight: '600',
   },
-  locationButton: {
+  restaurantMeta: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  section: {
+    marginBottom: width > 768 ? 24 : 16,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    marginBottom: width > 768 ? 16 : 12,
+  },
+  seeAllButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  seeAllText: {
     ...typography.bodySmall,
     color: colors.primary,
     fontWeight: '600',
   },
-  featuredImageContainer: {
-    width: '100%',
-    aspectRatio: 16/9,
-    borderRadius: 12,
+  singleRecipeContainer: {
+    paddingHorizontal: 20,
+  },
+  featuredRecipeCard: {
+    backgroundColor: colors.white,
+    borderRadius: 16,
     overflow: 'hidden',
-    backgroundColor: '#f0f0f0',
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 6,
+  },
+  featuredImageContainer: {
+    position: 'relative',
   },
   featuredImage: {
     width: '100%',
-    height: '100%',
+    height: width > 768 ? 200 : 160,
+    borderRadius: 12,
   },
   featuredTitleContainer: {
     position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,
+    backgroundColor: 'rgba(0,0,0,0.7)',
     padding: 16,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
   },
   featuredTitle: {
-    color: 'white',
-    fontSize: 14,
+    ...typography.heading4,
+    color: colors.white,
     fontWeight: 'bold',
-    textShadowColor: 'rgba(0, 0, 0, 0.75)',
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 3,
   },
   placeholder: {
     height: 200,
     justifyContent: 'center',
     alignItems: 'center',
+    backgroundColor: colors.lightGray,
+  },
+  rotationIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  refreshButton: {
+    padding: 4,
+  },
+  seeAll: {
+    ...typography.bodySmall,
+    color: colors.primary,
+    fontWeight: '600',
+  },
+  popularContainer: {
+    marginBottom: width > 768 ? 24 : 16,
+  },
+  locationButton: {
+    ...typography.bodySmall,
+    color: colors.primary,
+    fontWeight: '600',
+  },
+  searchContainer: {
+    paddingHorizontal: 20,
+    paddingTop: 2,
+    paddingBottom: width > 768 ? 16 : 12,
+  },
+  searchBar: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: colors.white,
+    borderRadius: 12,
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  searchIcon: {
+    marginRight: 12,
+  },
+  searchPlaceholder: {
+    ...typography.bodySmall,
+    color: colors.lightText,
   },
   floatingCartButton: {
     position: 'absolute',
@@ -799,5 +909,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     zIndex: 10,
   },
-
+  cartButtonInner: {
+    position: 'relative',
+  },
 });

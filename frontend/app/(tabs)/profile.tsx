@@ -11,7 +11,6 @@ import { useRouter } from "expo-router";
 import {
   Bookmark,
   ChevronRight,
-  CreditCard,
   Edit2,
   Grid,
   LogOut,
@@ -40,8 +39,7 @@ interface ExtendedUser extends Omit<User, 'id'> {
   avatar?: string;
   bio?: string;
   location?: string;
-  followers?: number;
-  following?: number;
+
   recipes?: number;
   reviews?: number;
 }
@@ -139,8 +137,7 @@ function ProfileContent() {
         avatar: user.profilePicture,
         bio: '',
         location: '',
-        followers: 0,
-        following: 0,
+
         recipes: 0,
         reviews: 0,
       };
@@ -216,10 +213,7 @@ function ProfileContent() {
       
       // Toggle follow state
       setProfileUser(prev => ({
-        ...prev!,
-        followers: isFollowingUser 
-          ? Math.max(0, (prev?.followers || 1) - 1) 
-          : (prev?.followers || 0) + 1
+        ...prev!
       }));
       
       setIsFollowingUser(!isFollowingUser);
@@ -231,10 +225,7 @@ function ProfileContent() {
       console.error('Error toggling follow status:', error);
       // Revert on error
       setProfileUser(prev => ({
-        ...prev!,
-        followers: isFollowingUser 
-          ? (prev?.followers || 0) + 1
-          : Math.max(0, (prev?.followers || 1) - 1)
+        ...prev!
       }));
       setIsFollowingUser(isFollowingUser);
     } finally {
@@ -242,13 +233,7 @@ function ProfileContent() {
     }
   };
 
-  const handleViewFollowers = () => {
-    router.push("/profile/followers");
-  };
 
-  const handleViewFollowing = () => {
-    router.push("/profile/following");
-  };
 
   const handleFollowToggle = () => {
     handleFollowUser();
@@ -291,22 +276,7 @@ function ProfileContent() {
               <Text style={styles.statNumber}>{userRecipes.length}</Text>
               <Text style={styles.statLabel}>Recipes</Text>
             </TouchableOpacity>
-            <View style={styles.statDivider} />
-            <TouchableOpacity
-              style={styles.statItem}
-              onPress={handleViewFollowers}
-            >
-              <Text style={styles.statNumber}>{profileUser?.followers || 0}</Text>
-              <Text style={styles.statLabel}>Followers</Text>
-            </TouchableOpacity>
-            <View style={styles.statDivider} />
-            <TouchableOpacity
-              style={styles.statItem}
-              onPress={handleViewFollowing}
-            >
-              <Text style={styles.statNumber}>{profileUser?.following || 0}</Text>
-              <Text style={styles.statLabel}>Following</Text>
-            </TouchableOpacity>
+
           </View>
 
           <View style={styles.profileActions}>
@@ -374,16 +344,6 @@ function ProfileContent() {
             <ChevronRight size={20} color={colors.lightText} />
           </TouchableOpacity>
           
-          <TouchableOpacity
-            style={styles.menuItem}
-            onPress={() => router.push("/profile/payment")}
-          >
-            <View style={styles.menuItemLeft}>
-              <CreditCard size={20} color={colors.primary} />
-              <Text style={styles.menuItemText}>Payment Methods</Text>
-            </View>
-            <ChevronRight size={20} color={colors.lightText} />
-          </TouchableOpacity>
           
           <TouchableOpacity
             style={styles.menuItem}

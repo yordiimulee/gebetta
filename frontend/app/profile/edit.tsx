@@ -6,7 +6,7 @@ import { useAuthStore } from "@/store/authStore";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
-import { Camera, ChevronLeft } from "lucide-react-native";
+import { ChevronLeft } from "lucide-react-native";
 import React, { useState } from "react";
 import {
   Alert,
@@ -23,10 +23,8 @@ export default function EditProfileScreen() {
   const router = useRouter();
   const { user, updateProfile } = useAuthStore();
   
-  const [name, setName] = useState(user?.name || "");
-  const [phone, setPhone] = useState(user?.phone || "");
-  const [bio, setBio] = useState(user?.bio || "");
-  const [location, setLocation] = useState(user?.location || "");
+  const [firstName, setFirstName] = useState((user as any)?.firstName || "");
+  const [lastName, setLastName] = useState((user as any)?.lastName || "");
   const [avatar, setAvatar] = useState(user?.avatar || "");
   
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -45,13 +43,13 @@ export default function EditProfileScreen() {
   };
 
   const handleSave = () => {
-    if (!name.trim()) {
-      Alert.alert("Error", "Name is required");
+    if (!firstName.trim()) {
+      Alert.alert("Error", "First name is required");
       return;
     }
     
-    if (!phone.trim()) {
-      Alert.alert("Error", "Phone number is required");
+    if (!lastName.trim()) {
+      Alert.alert("Error", "Last name is required");
       return;
     }
     
@@ -59,12 +57,10 @@ export default function EditProfileScreen() {
     
     try {
       updateProfile({
-        name,
-        phone,
-        bio,
-        location,
+        firstName,
+        lastName,
         avatar,
-      });
+      } as any);
       
       Alert.alert(
         "Success",
@@ -113,41 +109,24 @@ export default function EditProfileScreen() {
             style={styles.cameraButton}
             onPress={pickImage}
           >
-            <Camera size={20} color={colors.white} />
+            <Text style={{ color: colors.white, fontSize: 16 }}>📷</Text>
           </TouchableOpacity>
         </View>
         
         <View style={styles.form}>
           <Input
-            label="Full Name"
-            placeholder="Enter your full name"
-            value={name}
-            onChangeText={setName}
+            label="First Name"
+            placeholder="Enter your first name"
+            value={firstName}
+            onChangeText={setFirstName}
             autoCapitalize="words"
           />
           
           <Input
-            label="Phone Number"
-            placeholder="Enter your phone number"
-            value={phone}
-            onChangeText={setPhone}
-            keyboardType="phone-pad"
-          />
-          
-          <Input
-            label="Bio"
-            placeholder="Tell us about yourself"
-            value={bio}
-            onChangeText={setBio}
-            multiline
-            numberOfLines={4}
-          />
-          
-          <Input
-            label="Location"
-            placeholder="City, Country"
-            value={location}
-            onChangeText={setLocation}
+            label="Last Name"
+            placeholder="Enter your last name"
+            value={lastName}
+            onChangeText={setLastName}
             autoCapitalize="words"
           />
           

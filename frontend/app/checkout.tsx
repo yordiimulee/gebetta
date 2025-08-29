@@ -2,12 +2,14 @@ import Button from "@/components/Button";
 import colors from "@/constants/colors";
 import typography from "@/constants/typography";
 import { restaurants } from "@/mocks/restaurants";
+import { addresses as mockAddresses } from "@/mocks/addresses";
 import { useCartStore } from "@/store/cartStore";
-import { useProfileStore } from "@/store/profileStore";
+import { useAuthStore } from "@/store/useAuthStore";
 import { OrderServiceType } from "@/types/restaurant";
 import { Image } from "expo-image";
+import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import { Clock, MapPin } from "lucide-react-native";
+import { Clock, MapPin, CreditCard, ShoppingBag } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
 import {
   Alert,
@@ -20,8 +22,12 @@ import {
   TouchableOpacity,
   View,
   Modal,
+  Dimensions,
 } from "react-native";
 import { WebView } from "react-native-webview";
+
+const { width } = Dimensions.get("window");
+const isTablet = width > 768;
 
 export default function CheckoutScreen() {
   const router = useRouter();
@@ -36,7 +42,40 @@ export default function CheckoutScreen() {
     setServiceType,
     clearCart,
   } = useCartStore();
-  const { addresses } = useProfileStore();
+  const { user } = useAuthStore();
+  // Use mock addresses for development/testing when user has no addresses
+  const addresses = user?.addresses && user.addresses.length > 0 ? user.addresses : mockAddresses;
+  
+  // Helper function to get address ID regardless of interface
+  const getAddressId = (address: any) => address.id || address._id;
+  
+  // Helper function to get address display name
+  const getAddressDisplayName = (address: any) => {
+    if (address.Name) return address.Name;
+    if (address.addressLine1) return address.addressLine1;
+    return 'Address';
+  };
+  
+  // Helper function to get address type/label
+  const getAddressType = (address: any) => {
+    if (address.label) return address.label;
+    if (address.type) return address.type;
+    return 'Address';
+  };
+  
+  // Helper function to get address details
+  const getAddressDetails = (address: any) => {
+    if (address.additionalInfo) return address.additionalInfo;
+    if (address.addressLine2) return address.addressLine2;
+    return null;
+  };
+  
+  // Helper function to get address coordinates
+  const getAddressCoordinates = (address: any) => {
+    if (address.coordinates) return address.coordinates;
+    if (address.location) return address.location;
+    return null;
+  };
 
   const [isLoading, setIsLoading] = useState(true);
   const [selectedAddress, setSelectedAddress] = useState<string | null>(null);
@@ -68,7 +107,7 @@ export default function CheckoutScreen() {
     // Set default address if available
     if (addresses.length > 0 && serviceType === "delivery") {
       const defaultAddress = addresses.find((addr) => addr.isDefault);
-      setSelectedAddress(defaultAddress ? defaultAddress.id : addresses[0].id);
+      setSelectedAddress(getAddressId(defaultAddress) || getAddressId(addresses[0]) || null);
     }
   }, [addresses, serviceType]);
 
@@ -101,7 +140,7 @@ export default function CheckoutScreen() {
       }
 
       const selectedAddressData = addresses.find(
-        (addr) => addr.id === selectedAddress
+        (addr) => getAddressId(addr) === selectedAddress
       );
 
       const orderPayload = {
@@ -137,7 +176,7 @@ export default function CheckoutScreen() {
           headers: {
             "Content-Type": "application/json",
             Authorization:
-              "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY4OTFhNjM0NTZlYWE3ODgxMDJmOGM5NyIsImlhdCI6MTc1NjEyNjcwNywiZXhwIjoxNzYzOTAyNzA3fQ.1IfX9qLFN3uEz_V6JKbN3bNEbewytjix7u616WgCoDk",
+              "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjY4OTFhNjM0NTZlYWE3ODgxMDJmOGM5NyIsImlhdCI6MTc1NjE5MTI0NiwiZXhwIjoxNzYzOTY3MjQ2fQ.Y9l_J68iF512VQKb0y5jXTWjFVSfRLxxqXuZsVS3ISE",
           },
           body: JSON.stringify(orderPayload),
         }
@@ -227,17 +266,27 @@ export default function CheckoutScreen() {
     }
   };
 
-  // Remove lucide-react-native icons that don't exist
-  const getVehicleIcon = (type: string) => {
-    // Fallback to MapPin for all
-    return MapPin;
+  const getServiceTypeIcon = (type: OrderServiceType) => {
+    switch (type) {
+      case "delivery":
+        return MapPin;
+      case "dine-in":
+        return Clock;
+      case "pickup":
+        return ShoppingBag;
+      default:
+        return MapPin;
+    }
   };
 
   if (isLoading) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>Loading checkout...</Text>
+          <View style={styles.loadingSpinner}>
+            <Clock size={40} color={colors.primary} />
+          </View>
+          <Text style={styles.loadingText}>Preparing your checkout...</Text>
         </View>
       </SafeAreaView>
     );
@@ -252,7 +301,7 @@ export default function CheckoutScreen() {
       >
         <SafeAreaView style={{ flex: 1, backgroundColor: "#fff" }}>
           <View style={{ flexDirection: "row", alignItems: "center", padding: 8, backgroundColor: "#fff", borderBottomWidth: 1, borderBottomColor: colors.divider }}>
-            <TouchableOpacity onPress={() => setShowWebView(false)} style={{ padding: 8 }}>
+            <TouchableOpacity onPress={() => {setShowWebView(false); router.replace("/(tabs)")}} style={{ padding: 8 }}>
               <Text style={{ color: colors.primary, fontWeight: "bold" }}>Close</Text>
             </TouchableOpacity>
             <Text style={{ flex: 1, textAlign: "center", fontWeight: "bold" }}>Payment</Text>
@@ -292,239 +341,202 @@ export default function CheckoutScreen() {
           )}
         </SafeAreaView>
       </Modal>
+
+      {/* Header with gradient background */}
+      <LinearGradient
+        colors={['#1a1a1a', '#2d2d2d', '#1a1a1a']}
+        style={styles.headerGradient}
+      >
+        <View style={styles.headerContent}>
+          <Text style={styles.headerTitle}>Checkout</Text>
+          <Text style={styles.headerSubtitle}>Complete your order</Text>
+        </View>
+      </LinearGradient>
+
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
+        {/* Restaurant Info Card */}
         {restaurant && (
-          <View style={styles.restaurantInfo}>
-            <Image
-              source={{ uri: restaurant.imageUrl }}
-              style={styles.restaurantImage}
-              contentFit="cover"
-            />
-            <View style={styles.restaurantDetails}>
-              <Text style={styles.restaurantName}>{restaurant.name}</Text>
-              <View style={styles.deliveryTimeContainer}>
-                <Clock
-                  size={14}
-                  color={colors.lightText}
-                  style={styles.deliveryTimeIcon}
-                />
-                <Text style={styles.deliveryTimeText}>
-                  Estimated{" "}
-                  {serviceType === "delivery"
-                    ? "delivery"
-                    : serviceType === "pickup"
-                    ? "pickup"
-                    : "preparation"}
-                  : {restaurant.estimatedDeliveryTime}
-                </Text>
+          <View style={styles.restaurantCard}>
+            <LinearGradient
+              colors={['rgba(0,0,0,0.8)', 'rgba(0,0,0,0.6)']}
+              style={styles.restaurantCardGradient}
+            >
+              <Image
+                source={{ uri: restaurant.imageUrl }}
+                style={styles.restaurantImage}
+                contentFit="cover"
+              />
+              <View style={styles.restaurantDetails}>
+                <Text style={styles.restaurantName}>{restaurant.name}</Text>
+                <View style={styles.deliveryTimeContainer}>
+                  <Clock size={16} color={colors.white} style={styles.deliveryTimeIcon} />
+                  <Text style={styles.deliveryTimeText}>
+                    Estimated {serviceType === "delivery" ? "delivery" : serviceType === "pickup" ? "pickup" : "preparation"}: {restaurant.estimatedDeliveryTime}
+                  </Text>
+                </View>
+                <View style={styles.ratingContainer}>
+                  <Text style={styles.ratingText}>4.8 • Ethiopian Cuisine</Text>
+                </View>
               </View>
-            </View>
+            </LinearGradient>
           </View>
         )}
 
+        {/* Service Type Selection */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Service Type</Text>
+          <Text style={styles.sectionTitle}>Choose Service Type</Text>
           <View style={styles.serviceTypeContainer}>
-            <TouchableOpacity
-              style={[
-                styles.serviceTypeButton,
-                serviceType === "delivery" && styles.serviceTypeButtonActive,
-              ]}
-              onPress={() => handleServiceTypeChange("delivery")}
-            >
-              <MapPin
-                size={20}
-                color={serviceType === "delivery" ? colors.white : colors.text}
-              />
-              <Text
-                style={[
-                  styles.serviceTypeText,
-                  serviceType === "delivery" && styles.serviceTypeTextActive,
-                ]}
-              >
-                Delivery
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.serviceTypeButton,
-                serviceType === "dine-in" && styles.serviceTypeButtonActive,
-              ]}
-              onPress={() => handleServiceTypeChange("dine-in")}
-            >
-              <MapPin
-                size={20}
-                color={serviceType === "dine-in" ? colors.white : colors.text}
-              />
-              <Text
-                style={[
-                  styles.serviceTypeText,
-                  serviceType === "dine-in" && styles.serviceTypeTextActive,
-                ]}
-              >
-                Dine-in
-              </Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[
-                styles.serviceTypeButton,
-                serviceType === "pickup" && styles.serviceTypeButtonActive,
-              ]}
-              onPress={() => handleServiceTypeChange("pickup")}
-            >
-              <MapPin
-                size={20}
-                color={serviceType === "pickup" ? colors.white : colors.text}
-              />
-              <Text
-                style={[
-                  styles.serviceTypeText,
-                  serviceType === "pickup" && styles.serviceTypeTextActive,
-                ]}
-              >
-                Pickup
-              </Text>
-            </TouchableOpacity>
+            {(["delivery", "dine-in", "pickup"] as OrderServiceType[]).map((type) => {
+              const IconComponent = getServiceTypeIcon(type);
+              const isActive = serviceType === type;
+              return (
+                <TouchableOpacity
+                  key={type}
+                  style={[
+                    styles.serviceTypeButton,
+                    isActive && styles.serviceTypeButtonActive,
+                  ]}
+                  onPress={() => handleServiceTypeChange(type)}
+                >
+                  <LinearGradient
+                    colors={isActive ? ['#000000', '#333333'] : ['#ffffff', '#f8f8f8']}
+                    style={styles.serviceTypeGradient}
+                  >
+                    <IconComponent
+                      size={24}
+                      color={isActive ? colors.white : colors.primary}
+                    />
+                    <Text
+                      style={[
+                        styles.serviceTypeText,
+                        isActive && styles.serviceTypeTextActive,
+                      ]}
+                    >
+                      {type === "dine-in" ? "Dine In" : type.charAt(0).toUpperCase() + type.slice(1)}
+                    </Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              );
+            })}
           </View>
         </View>
 
+        {/* Vehicle Type for Delivery */}
         {serviceType === "delivery" && (
-          <>
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Vehicle Type</Text>
-              <View style={styles.vehicleTypeContainer}>
-                {["Bicycle", "Motorcycle", "Car"].map((type) => {
-                  const IconComponent = getVehicleIcon(type);
-                  return (
-                    <TouchableOpacity
-                      key={type}
-                      style={[
-                        styles.vehicleTypeButton,
-                        vehicleType === type && styles.vehicleTypeButtonActive,
-                      ]}
-                      onPress={() => setVehicleType(type)}
-                    >
-                      <IconComponent
-                        size={20}
-                        color={
-                          vehicleType === type ? colors.white : colors.text
-                        }
-                      />
-                      <Text
-                        style={[
-                          styles.vehicleTypeText,
-                          vehicleType === type && styles.vehicleTypeTextActive,
-                        ]}
-                      >
-                        {type}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
-            </View>
-
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Delivery Address</Text>
-
-              {addresses.length === 0 ? (
-                <TouchableOpacity
-                  style={styles.addButton}
-                  onPress={handleAddAddress}
-                >
-                  <MapPin size={20} color={colors.primary} />
-                  <Text style={styles.addButtonText}>Add Address</Text>
-                </TouchableOpacity>
-              ) : (
-                <View style={styles.addressesContainer}>
-                  {addresses.map((address) => (
-                    <TouchableOpacity
-                      key={address.id}
-                      style={[
-                        styles.addressCard,
-                        selectedAddress === address.id && styles.selectedCard,
-                      ]}
-                      onPress={() => setSelectedAddress(address.id)}
-                    >
-                      <View style={styles.addressCardContent}>
-                        <MapPin
-                          size={20}
-                          color={
-                            selectedAddress === address.id
-                              ? colors.primary
-                              : colors.text
-                          }
-                          style={styles.addressIcon}
-                        />
-                        <View style={styles.addressDetails}>
-                          <Text style={styles.addressType}>
-                            {address.label === "other" && address.customLabel
-                              ? address.customLabel
-                              : address.label.charAt(0).toUpperCase() +
-                                address.label.slice(1)}
-                          </Text>
-                          <Text style={styles.addressText}>
-                            {address.street}
-                          </Text>
-                          <Text style={styles.addressText}>
-                            {address.city}, {address.state} {address.postalCode}
-                          </Text>
-                          {address.note && (
-                            <Text style={styles.addressText}>
-                              {address.note}
-                            </Text>
-                          )}
-                        </View>
-                      </View>
-                      <View
-                        style={[
-                          styles.radioButton,
-                          selectedAddress === address.id &&
-                            styles.radioButtonSelected,
-                        ]}
-                      >
-                        {selectedAddress === address.id && (
-                          <View style={styles.radioButtonInner} />
-                        )}
-                      </View>
-                    </TouchableOpacity>
-                  ))}
-
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Delivery Vehicle</Text>
+            <View style={styles.vehicleTypeContainer}>
+              {["Bicycle", "Motorcycle", "Car"].map((type) => {
+                const isActive = vehicleType === type;
+                return (
                   <TouchableOpacity
-                    style={styles.addNewButton}
-                    onPress={handleAddAddress}
+                    key={type}
+                    style={[
+                      styles.vehicleTypeButton,
+                      isActive && styles.vehicleTypeButtonActive,
+                    ]}
+                    onPress={() => setVehicleType(type)}
                   >
-                    <MapPin size={16} color={colors.primary} />
-                    <Text style={styles.addNewButtonText}>Add New Address</Text>
+                    <Text style={styles.vehicleEmoji}>
+                      {type === "Car" ? "🚗" : type === "Bicycle" ? "🚲" : "🏍️"}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.vehicleTypeText,
+                        isActive && styles.vehicleTypeTextActive,
+                      ]}
+                    >
+                      {type}
+                    </Text>
                   </TouchableOpacity>
-                </View>
-              )}
+                );
+              })}
             </View>
-          </>
+          </View>
         )}
 
+        {/* Delivery Address */}
+        {serviceType === "delivery" && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Delivery Address</Text>
+            {addresses.length === 0 ? (
+              <TouchableOpacity style={styles.addAddressButton} onPress={handleAddAddress}>
+                <LinearGradient colors={['#f0f0f0', '#e0e0e0']} style={styles.addAddressGradient}>
+                  <MapPin size={24} color={colors.primary} />
+                  <Text style={styles.addAddressText}>Add New Address</Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            ) : (
+              <View style={styles.addressesContainer}>
+                {addresses.map((address) => (
+                  <TouchableOpacity
+                    key={getAddressId(address)}
+                    style={[
+                      styles.addressCard,
+                      selectedAddress === getAddressId(address) && styles.selectedAddressCard
+                    ]}
+                    onPress={() => setSelectedAddress(getAddressId(address) || null)}
+                  >
+                    <View style={styles.addressCardContent}>
+                      <View style={styles.addressIconContainer}>
+                        <MapPin size={20} color={colors.primary} />
+                      </View>
+                      <View style={styles.addressDetails}>
+                        <Text style={styles.addressType}>
+                          {getAddressType(address).charAt(0).toUpperCase() + getAddressType(address).slice(1)}
+                          {address.isDefault && (
+                            <Text style={styles.defaultBadge}> • Default</Text>
+                          )}
+                        </Text>
+                        <Text style={styles.addressText}>
+                          {getAddressDisplayName(address)}
+                        </Text>
+                        {getAddressDetails(address) && (
+                          <Text style={styles.addressText}>
+                            {getAddressDetails(address)}
+                          </Text>
+                        )}
+                        {getAddressCoordinates(address) && (
+                          <Text style={styles.addressText}>
+                            {getAddressCoordinates(address)?.lat ? 
+                              `Coordinates: ${getAddressCoordinates(address)?.lat.toFixed(4)}, ${getAddressCoordinates(address)?.lng.toFixed(4)}` :
+                              `Location: ${getAddressCoordinates(address)?.latitude.toFixed(4)}, ${getAddressCoordinates(address)?.longitude.toFixed(4)}`
+                            }
+                          </Text>
+                        )}
+                      </View>
+                    </View>
+                    <View style={styles.addressSelectionIndicator}>
+                      {selectedAddress === getAddressId(address) ? (
+                        <View style={styles.selectedAddressIndicator}>
+                          <Text style={styles.selectedAddressText}>Selected</Text>
+                        </View>
+                      ) : (
+                        <View style={styles.radioButton}>
+                          <View style={styles.radioButtonInner} />
+                        </View>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                ))}
+                <TouchableOpacity style={styles.addNewAddressButton} onPress={handleAddAddress}>
+                  <Text style={styles.addNewAddressText}>+ Add New Address</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
+        )}
+
+        {/* Table Number for Dine-in */}
         {serviceType === "dine-in" && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Table Number</Text>
+            <Text style={styles.sectionTitle}>Select Table</Text>
             <View style={styles.tableNumberContainer}>
-              {[
-                "1",
-                "2",
-                "3",
-                "4",
-                "5",
-                "6",
-                "7",
-                "8",
-                "9",
-                "10",
-              ].map((num) => (
+              {["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"].map((num) => (
                 <TouchableOpacity
                   key={num}
                   style={[
@@ -547,18 +559,12 @@ export default function CheckoutScreen() {
           </View>
         )}
 
+        {/* Pickup Time for Pickup */}
         {serviceType === "pickup" && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Pickup Time</Text>
             <View style={styles.pickupTimeContainer}>
-              {[
-                "15 min",
-                "30 min",
-                "45 min",
-                "1 hour",
-                "1.5 hours",
-                "2 hours",
-              ].map((time) => (
+              {["15 min", "30 min", "45 min", "1 hour", "1.5 hours", "2 hours"].map((time) => (
                 <TouchableOpacity
                   key={time}
                   style={[
@@ -581,15 +587,22 @@ export default function CheckoutScreen() {
           </View>
         )}
 
+        {/* Order Items */}
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Order Items</Text>
-
-          <View style={styles.cartItemsContainer}>
-            {cartItems.map((item) => (
-              <View key={item.menuItemId} style={styles.checkoutItem}>
-                <Text style={styles.itemQuantity}>{item.quantity}x</Text>
-                <Text style={styles.itemName}>{item.menuItem.name}</Text>
-                <Text style={styles.itemPrice}>
+          <Text style={styles.sectionTitle}>Your Order</Text>
+          <View style={styles.orderItemsCard}>
+            {cartItems.map((item, index) => (
+              <View key={item.menuItemId} style={[
+                styles.orderItem,
+                index === cartItems.length - 1 && styles.lastOrderItem
+              ]}>
+                <View style={styles.orderItemLeft}>
+                  <View style={styles.quantityBadge}>
+                    <Text style={styles.quantityText}>{item.quantity}</Text>
+                  </View>
+                  <Text style={styles.orderItemName}>{item.menuItem.name}</Text>
+                </View>
+                <Text style={styles.orderItemPrice}>
                   {(item.menuItem.price * item.quantity).toFixed(2)} Birr
                 </Text>
               </View>
@@ -597,12 +610,10 @@ export default function CheckoutScreen() {
           </View>
         </View>
 
+        {/* Tip Section */}
         {serviceType !== "dine-in" && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>
-              Tip for {serviceType === "delivery" ? "Delivery" : "Service"}
-            </Text>
-
+            <Text style={styles.sectionTitle}>Add a Tip</Text>
             <View style={styles.tipContainer}>
               {[0, 10, 20, 30, 50].map((amount) => (
                 <TouchableOpacity
@@ -616,9 +627,7 @@ export default function CheckoutScreen() {
                   <Text
                     style={[
                       styles.tipButtonText,
-                      tip === amount &&
-                        !customTip &&
-                        styles.tipButtonTextSelected,
+                      tip === amount && !customTip && styles.tipButtonTextSelected,
                     ]}
                   >
                     {amount === 0 ? "No Tip" : `${amount} Birr`}
@@ -626,9 +635,8 @@ export default function CheckoutScreen() {
                 </TouchableOpacity>
               ))}
             </View>
-
             <View style={styles.customTipContainer}>
-              <Text style={styles.customTipLabel}>Custom Tip Amount</Text>
+              <Text style={styles.customTipLabel}>Custom Amount</Text>
               <TextInput
                 style={styles.customTipInput}
                 placeholder="Enter custom tip amount"
@@ -641,66 +649,80 @@ export default function CheckoutScreen() {
           </View>
         )}
 
-        <View style={styles.receiptContainer}>
-          <Text style={styles.receiptTitle}>Order Summary</Text>
-
-          <View style={styles.receiptRow}>
-            <Text style={styles.receiptLabel}>Subtotal</Text>
-            <Text style={styles.receiptValue}>
-              {subtotal.toFixed(2)} Birr
-            </Text>
-          </View>
-
-          {serviceType === "delivery" && (
-            <View style={styles.receiptRow}>
-              <Text style={styles.receiptLabel}>Delivery Fee</Text>
-              <Text style={styles.receiptValue}>
-                {deliveryFee.toFixed(2)} Birr
-              </Text>
+        {/* Order Summary */}
+        <View style={styles.orderSummaryCard}>
+          <LinearGradient colors={['#f8f8f8', '#f0f0f0']} style={styles.orderSummaryGradient}>
+            <Text style={styles.orderSummaryTitle}>Order Summary</Text>
+            
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Subtotal</Text>
+              <Text style={styles.summaryValue}>{subtotal.toFixed(2)} Birr</Text>
             </View>
-          )}
 
-          <View style={styles.receiptRow}>
-            <Text style={styles.receiptLabel}>Tax (15%)</Text>
-            <Text style={styles.receiptValue}>{tax.toFixed(2)} Birr</Text>
-          </View>
+            {serviceType === "delivery" && (
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Delivery Fee</Text>
+                <Text style={styles.summaryValue}>{deliveryFee.toFixed(2)} Birr</Text>
+              </View>
+            )}
 
-          {serviceType !== "dine-in" && (
-            <View style={styles.receiptRow}>
-              <Text style={styles.receiptLabel}>Tip</Text>
-              <Text style={styles.receiptValue}>{tip.toFixed(2)} Birr</Text>
+            <View style={styles.summaryRow}>
+              <Text style={styles.summaryLabel}>Tax (15%)</Text>
+              <Text style={styles.summaryValue}>{tax.toFixed(2)} Birr</Text>
             </View>
-          )}
 
-          <View style={styles.receiptDivider} />
+            {serviceType !== "dine-in" && (
+              <View style={styles.summaryRow}>
+                <Text style={styles.summaryLabel}>Tip</Text>
+                <Text style={styles.summaryValue}>{tip.toFixed(2)} Birr</Text>
+              </View>
+            )}
 
-          <View style={styles.receiptRow}>
-            <Text style={styles.receiptTotalLabel}>Total</Text>
-            <Text style={styles.receiptTotalValue}>
-              {total.toFixed(2)} Birr
-            </Text>
-          </View>
+            <View style={styles.summaryDivider} />
+
+            <View style={styles.summaryRow}>
+              <Text style={styles.totalLabel}>Total</Text>
+              <Text style={styles.totalValue}>{total.toFixed(2)} Birr</Text>
+            </View>
+          </LinearGradient>
+        </View>
+
+        {/* Security Badge */}
+        <View style={styles.securityBadge}>
+          <Text style={styles.securityText}>Secure checkout with encryption</Text>
         </View>
       </ScrollView>
 
+      {/* Footer with Place Order Button */}
       <View style={styles.footer}>
-        <View style={styles.totalContainer}>
-          <Text style={styles.totalLabel}>Total</Text>
-          <Text style={styles.totalAmount}>{total.toFixed(2)} Birr</Text>
-        </View>
-        <Button
-          title={`Place ${getServiceTypeLabel(serviceType)} Order`}
-          onPress={handlePlaceOrder}
-          loading={isProcessing}
-          disabled={
-            isLoading ||
-            isProcessing ||
-            (serviceType === "delivery" && !selectedAddress) ||
-            (serviceType === "dine-in" && !tableNumber) ||
-            (serviceType === "pickup" && !pickupTime)
-          }
-          style={styles.placeOrderButton}
-        />
+        <LinearGradient colors={['#ffffff', '#f8f8f8']} style={styles.footerGradient}>
+          <View style={styles.totalContainer}>
+            <View>
+              <Text style={styles.footerTotalLabel}>Total Amount</Text>
+              <Text style={styles.totalAmount}>{total.toFixed(2)} Birr</Text>
+            </View>
+            <View style={styles.orderTypeBadge}>
+              <Text style={styles.orderTypeText}>{getServiceTypeLabel(serviceType)}</Text>
+            </View>
+          </View>
+          
+          <Button
+            title={`Place ${getServiceTypeLabel(serviceType)} Order`}
+            onPress={handlePlaceOrder}
+            loading={isProcessing}
+            disabled={
+              isLoading ||
+              isProcessing ||
+              (serviceType === "delivery" && !selectedAddress) ||
+              (serviceType === "dine-in" && !tableNumber) ||
+              (serviceType === "pickup" && !pickupTime)
+            }
+            style={styles.placeOrderButton}
+            variant="primary"
+            size="large"
+            fullWidth
+          />
+        </LinearGradient>
       </View>
     </SafeAreaView>
   );
@@ -711,12 +733,32 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
   },
+  headerGradient: {
+    paddingTop: 12,
+    paddingBottom: 16,
+    paddingHorizontal: 20,
+  },
+  headerContent: {
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: colors.white,
+    marginBottom: 4,
+  },
+  headerSubtitle: {
+    fontSize: 16,
+    color: colors.white,
+    opacity: 0.8,
+  },
+
   scrollView: {
     flex: 1,
   },
   scrollContent: {
-    padding: 16,
-    paddingBottom: 100,
+    padding: 20,
+    paddingBottom: 120,
   },
   loadingContainer: {
     flex: 1,
@@ -724,77 +766,107 @@ const styles = StyleSheet.create({
     alignItems: "center",
     minHeight: 200,
   },
+  loadingSpinner: {
+    marginBottom: 20,
+  },
   loadingText: {
     ...typography.body,
     color: colors.lightText,
+    fontSize: 16,
   },
-  restaurantInfo: {
+  restaurantCard: {
+    marginBottom: 24,
+    borderRadius: 16,
+    overflow: 'hidden',
+    elevation: 8,
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+  },
+  restaurantCardGradient: {
     flexDirection: "row",
     alignItems: "center",
-    marginBottom: 24,
-    backgroundColor: colors.cardBackground,
-    borderRadius: 12,
-    padding: 16,
+    padding: 20,
   },
   restaurantImage: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    marginRight: 16,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    marginRight: 20,
   },
   restaurantDetails: {
     flex: 1,
   },
   restaurantName: {
-    ...typography.heading3,
-    color: colors.text,
-    marginBottom: 4,
+    fontSize: 22,
+    fontWeight: "bold",
+    color: colors.white,
+    marginBottom: 8,
   },
   deliveryTimeContainer: {
     flexDirection: "row",
     alignItems: "center",
+    marginBottom: 8,
   },
   deliveryTimeIcon: {
-    marginRight: 4,
+    marginRight: 8,
   },
   deliveryTimeText: {
-    ...typography.bodySmall,
-    color: colors.lightText,
+    fontSize: 14,
+    color: colors.white,
+    opacity: 0.9,
+  },
+  ratingContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  ratingText: {
+    fontSize: 12,
+    color: colors.white,
+    opacity: 0.8,
+    marginLeft: 4,
   },
   section: {
-    marginBottom: 24,
+    marginBottom: 28,
   },
   sectionTitle: {
-    ...typography.heading4,
+    fontSize: 20,
+    fontWeight: "600",
     color: colors.text,
     marginBottom: 16,
   },
   serviceTypeContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 8,
+    gap: 12,
   },
   serviceTypeButton: {
     flex: 1,
-    flexDirection: "column",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: colors.cardBackground,
-    borderRadius: 12,
-    padding: 16,
-    marginHorizontal: 4,
-    borderWidth: 1,
-    borderColor: colors.divider,
+    borderRadius: 16,
+    overflow: 'hidden',
+    elevation: 4,
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
   serviceTypeButtonActive: {
-    backgroundColor: colors.primary,
-    borderColor: colors.primary,
+    elevation: 8,
+    shadowOpacity: 0.2,
+  },
+  serviceTypeGradient: {
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 20,
+    minHeight: 100,
   },
   serviceTypeText: {
-    ...typography.bodySmall,
-    color: colors.text,
-    marginTop: 8,
-    fontWeight: "500",
+    fontSize: 14,
+    fontWeight: "600",
+    color: colors.primary,
+    marginTop: 12,
+    textAlign: 'center',
   },
   serviceTypeTextActive: {
     color: colors.white,
@@ -802,55 +874,184 @@ const styles = StyleSheet.create({
   vehicleTypeContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 8,
+    gap: 12,
   },
   vehicleTypeButton: {
     flex: 1,
-    flexDirection: "column",
-    alignItems: "center",
-    justifyContent: "center",
     backgroundColor: colors.cardBackground,
     borderRadius: 12,
     padding: 16,
-    marginHorizontal: 4,
-    borderWidth: 1,
+    alignItems: "center",
+    borderWidth: 2,
     borderColor: colors.divider,
   },
   vehicleTypeButtonActive: {
-    backgroundColor: colors.primary,
     borderColor: colors.primary,
+    backgroundColor: colors.primary + "15",
+  },
+  vehicleEmoji: {
+    fontSize: 24,
+    marginBottom: 8,
   },
   vehicleTypeText: {
-    ...typography.bodySmall,
-    color: colors.text,
-    marginTop: 8,
+    fontSize: 14,
     fontWeight: "500",
+    color: colors.text,
   },
   vehicleTypeTextActive: {
+    color: colors.primary,
+    fontWeight: "600",
+  },
+  addAddressButton: {
+    borderRadius: 16,
+    overflow: 'hidden',
+  },
+  addAddressGradient: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
+    borderWidth: 2,
+    borderColor: colors.divider,
+    borderStyle: "dashed",
+  },
+  addAddressText: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: colors.primary,
+    marginLeft: 12,
+  },
+  addressesContainer: {
+    gap: 12,
+  },
+  addressCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: colors.cardBackground,
+    borderRadius: 16,
+    padding: 20,
+    borderWidth: 2,
+    borderColor: colors.divider,
+  },
+  selectedAddressCard: {
+    borderColor: colors.primary,
+    backgroundColor: colors.primary + "08",
+  },
+  addressSelectionIndicator: {
+    alignItems: "center",
+    justifyContent: "center",
+    width: 60,
+  },
+  selectedAddressIndicator: {
+    backgroundColor: colors.primary,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  selectedAddressText: {
+    fontSize: 12,
     color: colors.white,
+    fontWeight: "600",
+  },
+  addressCardContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  addressIconContainer: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: colors.primary + "15",
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 16,
+  },
+  addressDetails: {
+    flex: 1,
+  },
+  addressType: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: colors.primary,
+    marginBottom: 4,
+  },
+  addressText: {
+    fontSize: 14,
+    color: colors.text,
+    marginBottom: 2,
+  },
+  addressNote: {
+    fontSize: 12,
+    color: colors.lightText,
+    fontStyle: 'italic',
+  },
+  radioButton: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: colors.divider,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  radioButtonSelected: {
+    borderColor: colors.primary,
+  },
+  radioButtonInner: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: colors.primary,
+  },
+  addNewAddressButton: {
+    alignItems: "center",
+    paddingVertical: 16,
+  },
+  addNewAddressText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: colors.primary,
+  },
+  defaultBadge: {
+    fontSize: 12,
+    color: colors.primary,
+    fontWeight: "500",
+  },
+  defaultAddressIndicator: {
+    backgroundColor: colors.primary,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+  },
+  defaultAddressText: {
+    fontSize: 12,
+    color: colors.white,
+    fontWeight: "600",
   },
   tableNumberContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
+    gap: 12,
   },
   tableNumberButton: {
     width: "30%",
     backgroundColor: colors.cardBackground,
-    borderRadius: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: colors.divider,
+    borderRadius: 12,
+    paddingVertical: 16,
     alignItems: "center",
+    borderWidth: 2,
+    borderColor: colors.divider,
   },
   tableNumberButtonActive: {
     borderColor: colors.primary,
-    backgroundColor: colors.primary + "10", // 10% opacity
+    backgroundColor: colors.primary + "15",
   },
   tableNumberText: {
-    ...typography.body,
+    fontSize: 16,
+    fontWeight: "500",
     color: colors.text,
   },
   tableNumberTextActive: {
@@ -861,164 +1062,104 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
+    gap: 12,
   },
   pickupTimeButton: {
     width: "48%",
     backgroundColor: colors.cardBackground,
-    borderRadius: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: colors.divider,
+    borderRadius: 12,
+    paddingVertical: 16,
     alignItems: "center",
+    borderWidth: 2,
+    borderColor: colors.divider,
   },
   pickupTimeButtonActive: {
     borderColor: colors.primary,
-    backgroundColor: colors.primary + "10", // 10% opacity
+    backgroundColor: colors.primary + "15",
   },
   pickupTimeText: {
-    ...typography.body,
+    fontSize: 14,
+    fontWeight: "500",
     color: colors.text,
   },
   pickupTimeTextActive: {
     color: colors.primary,
     fontWeight: "600",
   },
-  addButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
+  orderItemsCard: {
     backgroundColor: colors.cardBackground,
-    borderRadius: 12,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: colors.divider,
-    borderStyle: "dashed",
+    borderRadius: 16,
+    padding: 20,
+    elevation: 4,
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
   },
-  addButtonText: {
-    ...typography.body,
-    color: colors.primary,
-    marginLeft: 8,
-  },
-  addressesContainer: {
-    marginBottom: 8,
-  },
-  addressCard: {
+  orderItem: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: colors.cardBackground,
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 12,
-    borderWidth: 1,
-    borderColor: colors.divider,
-  },
-  selectedCard: {
-    borderColor: colors.primary,
-  },
-  addressCardContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    flex: 1,
-  },
-  addressIcon: {
-    marginRight: 12,
-  },
-  addressDetails: {
-    flex: 1,
-  },
-  addressType: {
-    ...typography.bodySmall,
-    color: colors.primary,
-    fontWeight: "600",
-    marginBottom: 4,
-  },
-  addressText: {
-    ...typography.body,
-    color: colors.text,
-  },
-  radioButton: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: colors.divider,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  radioButtonSelected: {
-    borderColor: colors.primary,
-  },
-  radioButtonInner: {
-    width: 10,
-    height: 10,
-    borderRadius: 5,
-    backgroundColor: colors.primary,
-  },
-  addNewButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
     paddingVertical: 12,
-  },
-  addNewButtonText: {
-    ...typography.body,
-    color: colors.primary,
-    marginLeft: 8,
-  },
-  cartItemsContainer: {
-    backgroundColor: colors.cardBackground,
-    borderRadius: 12,
-    padding: 16,
-  },
-  checkoutItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingVertical: 8,
     borderBottomWidth: 1,
     borderBottomColor: colors.divider,
   },
-  itemQuantity: {
-    ...typography.body,
-    color: colors.primary,
-    fontWeight: "600",
-    marginRight: 8,
-    width: 30,
+  lastOrderItem: {
+    borderBottomWidth: 0,
   },
-  itemName: {
-    ...typography.body,
+  orderItemLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    flex: 1,
+  },
+  quantityBadge: {
+    backgroundColor: colors.primary,
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    marginRight: 12,
+    minWidth: 24,
+    alignItems: 'center',
+  },
+  quantityText: {
+    color: colors.white,
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  orderItemName: {
+    fontSize: 16,
     color: colors.text,
     flex: 1,
   },
-  itemPrice: {
-    ...typography.body,
-    color: colors.text,
-    fontWeight: "500",
+  orderItemPrice: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: colors.primary,
   },
   tipContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
+    gap: 12,
+    marginBottom: 16,
   },
   tipButton: {
     backgroundColor: colors.cardBackground,
-    borderRadius: 8,
-    paddingVertical: 12,
+    borderRadius: 12,
+    paddingVertical: 14,
     paddingHorizontal: 16,
-    marginBottom: 12,
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: colors.divider,
     width: "48%",
     alignItems: "center",
   },
   tipButtonSelected: {
     borderColor: colors.primary,
-    backgroundColor: colors.primary + "10", // 10% opacity
+    backgroundColor: colors.primary + "15",
   },
   tipButtonText: {
-    ...typography.body,
+    fontSize: 14,
+    fontWeight: "500",
     color: colors.text,
   },
   tipButtonTextSelected: {
@@ -1026,86 +1167,124 @@ const styles = StyleSheet.create({
     fontWeight: "600",
   },
   customTipContainer: {
-    marginTop: 16,
+    marginTop: 8,
   },
   customTipLabel: {
-    ...typography.body,
+    fontSize: 14,
+    fontWeight: "500",
     color: colors.text,
     marginBottom: 8,
-    fontWeight: "500",
   },
   customTipInput: {
     backgroundColor: colors.cardBackground,
-    borderRadius: 8,
-    padding: 12,
-    borderWidth: 1,
-    borderColor: colors.divider,
-    ...typography.body,
-    color: colors.text,
-  },
-  receiptContainer: {
-    backgroundColor: colors.cardBackground,
     borderRadius: 12,
     padding: 16,
-    marginBottom: 24,
-  },
-  receiptTitle: {
-    ...typography.heading4,
+    borderWidth: 2,
+    borderColor: colors.divider,
+    fontSize: 16,
     color: colors.text,
-    marginBottom: 16,
   },
-  receiptDivider: {
-    height: 1,
-    backgroundColor: colors.divider,
-    marginVertical: 12,
+  orderSummaryCard: {
+    marginBottom: 24,
+    borderRadius: 16,
+    overflow: 'hidden',
+    elevation: 6,
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: 3 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
   },
-  receiptRow: {
+  orderSummaryGradient: {
+    padding: 24,
+  },
+  orderSummaryTitle: {
+    fontSize: 20,
+    fontWeight: "600",
+    color: colors.text,
+    marginBottom: 20,
+  },
+  summaryRow: {
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: 8,
+    alignItems: "center",
+    marginBottom: 12,
   },
-  receiptLabel: {
-    ...typography.body,
+  summaryLabel: {
+    fontSize: 16,
     color: colors.lightText,
   },
-  receiptValue: {
-    ...typography.body,
+  summaryValue: {
+    fontSize: 16,
     color: colors.text,
+    fontWeight: "500",
   },
-  receiptTotalLabel: {
-    ...typography.bodyLarge,
-    color: colors.text,
+  summaryDivider: {
+    height: 1,
+    backgroundColor: colors.divider,
+    marginVertical: 16,
+  },
+  totalLabel: {
+    fontSize: 18,
     fontWeight: "600",
+    color: colors.text,
   },
-  receiptTotalValue: {
-    ...typography.heading3,
+  totalValue: {
+    fontSize: 24,
+    fontWeight: "bold",
     color: colors.primary,
+  },
+  securityBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 16,
+    gap: 8,
+  },
+  securityText: {
+    fontSize: 12,
+    color: colors.lightText,
   },
   footer: {
     position: "absolute",
     bottom: 0,
     left: 0,
     right: 0,
-    backgroundColor: colors.cardBackground,
-    borderTopWidth: 1,
-    borderTopColor: colors.divider,
-    padding: 16,
-    paddingBottom: Platform.OS === "ios" ? 32 : 16,
+    elevation: 8,
+    shadowColor: colors.black,
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  footerGradient: {
+    padding: 20,
+    paddingBottom: Platform.OS === "ios" ? 40 : 20,
   },
   totalContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 16,
+    marginBottom: 20,
   },
-  totalLabel: {
-    ...typography.bodyLarge,
-    color: colors.text,
-    fontWeight: "600",
+  footerTotalLabel: {
+    fontSize: 14,
+    color: colors.lightText,
+    marginBottom: 4,
   },
   totalAmount: {
-    ...typography.heading3,
+    fontSize: 24,
+    fontWeight: "bold",
     color: colors.primary,
+  },
+  orderTypeBadge: {
+    backgroundColor: colors.primary,
+    borderRadius: 20,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  orderTypeText: {
+    color: colors.white,
+    fontSize: 12,
+    fontWeight: "600",
   },
   placeOrderButton: {
     marginBottom: 0,

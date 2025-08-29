@@ -13,10 +13,9 @@ export default function AddAddressScreen() {
     const newAddress = {
       street: data.street,
       city: data.city,
-      state: data.state,
-      postalCode: data.postalCode,
       label: data.label,
-      isDefault: data.isDefault || false
+      isDefault: data.isDefault || false,
+      ...(data.customLabel && { customLabel: data.customLabel })
     };
     
     addAddress(newAddress);
@@ -28,10 +27,9 @@ export default function AddAddressScreen() {
       initialData={{
         street: '',
         city: '',
-        state: '',
-        postalCode: '',
         label: 'home',
-        isDefault: false
+        isDefault: false,
+        customLabel: '',
       }}
       onSubmit={handleSubmit}
     />
