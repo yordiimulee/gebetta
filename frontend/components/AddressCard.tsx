@@ -65,12 +65,14 @@ export default function AddressCard({
       </View>
       
       <Text style={[styles.address, selected && styles.selectedText]}>
-        {address.street}
+        {address.additionalInfo}
       </Text>
       
-      <Text style={styles.city}>
-        {address.city}{address.city && address.state ? ', ' : ''}{address.state} {address.postalCode}
-      </Text>
+      {address.coordinates && (
+        <Text style={styles.coordinates}>
+          {address.coordinates.lat.toFixed(4)}, {address.coordinates.lng.toFixed(4)}
+        </Text>
+      )}
       
       {showActions && (
         <View style={styles.actions}>
@@ -154,10 +156,10 @@ const styles = StyleSheet.create({
     ...typography.body,
     marginBottom: 4,
   },
-  city: {
-    ...typography.bodySmall,
+  coordinates: {
+    ...typography.caption,
     color: colors.lightText,
-    marginBottom: 8,
+    marginTop: 4,
   },
   instructions: {
     ...typography.caption,

@@ -17,31 +17,38 @@ export default function EditAddressScreen() {
     return null;
   }
 
-  const handleSubmit = (data: AddressFormData) => {
-    // Only update the fields that are part of the AddressType
-    const updatedAddress: Partial<Omit<AddressType, 'id' | 'createdAt' | 'updatedAt'>> = {
-      street: data.street,
-      city: data.city,
-      state: data.state,
-      postalCode: data.postalCode,
-      label: data.label,
-      customLabel: data.customLabel,
-      isDefault: data.isDefault
-    };
-    
-    editAddress(id, updatedAddress);
-    router.back();
+  const handleSubmit = async (data: AddressFormData) => {
+    try {
+      const { useAuthStore } = await import('@/store/useAuthStore');
+      const { user } = useAuthStore.getState();
+      
+      if (!user?.token) {
+        console.error('No auth token found');
+        return;
+      }
+
+      // Map form data to API structure
+      const updatedAddress = {
+        name: data.street, // Use street as name
+        label: data.customLabel && data.label === 'other' ? data.customLabel : data.label,
+        additionalInfo: data.city, // Use city as additional info
+        isDefault: data.isDefault
+      };
+      
+      await editAddress(id, updatedAddress, user.token);
+      router.back();
+    } catch (error) {
+      console.error('Failed to update address:', error);
+    }
   };
 
   return (
     <AddressForm
       initialData={{
-        street: address.street,
-        city: address.city,
-        state: address.state,
-        postalCode: address.postalCode,
-        label: address.label,
-        customLabel: address.customLabel,
+        street: address.street || address.name || '',
+        city: address.city || address.additionalInfo || '',
+        label: (['home', 'work', 'other'].includes(address.label)) ? address.label as 'home' | 'work' | 'other' : 'other',
+        customLabel: address.customLabel || ((!['home', 'work', 'other'].includes(address.label)) ? address.label : ''),
         isDefault: address.isDefault
       }}
       onSubmit={handleSubmit}

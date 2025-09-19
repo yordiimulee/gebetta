@@ -1,18 +1,16 @@
-import RecipeCard from "@/components/RecipeCard";
+
 import colors from "@/constants/colors";
 import typography from "@/constants/typography";
 import { useAuthStore, type User } from "@/store/useAuthStore";
 import { useCartStore } from "@/store/cartStore";
 import { useProfileStore } from "@/store/profileStore";
-import { useRecipeStore } from "@/store/recipeStore";
+
 import { Ionicons } from "@expo/vector-icons";
 import { Image } from 'expo-image';
 import { useRouter } from "expo-router";
 import {
-  Bookmark,
   ChevronRight,
   Edit2,
-  Grid,
   LogOut,
   MapPin,
   Settings,
@@ -40,7 +38,7 @@ interface ExtendedUser extends Omit<User, 'id'> {
   bio?: string;
   location?: string;
 
-  recipes?: number;
+
   reviews?: number;
 }
 
@@ -50,12 +48,17 @@ export default function ProfileScreen() {
   const [initialized, setInitialized] = useState(false);
   const [debugInfo, setDebugInfo] = useState<any>(null);
 
-  // Initialize auth state on mount
+  // Initialize auth state on mount (only if needed)
   useEffect(() => {
     const init = async () => {
       try {
-        console.log('ProfileScreen: Initializing auth...');
-        await initializeAuth();
+        console.log('ProfileScreen: Checking auth state...');
+        
+        // Only initialize if user is not already set
+        if (!user && !isAuthLoading) {
+          console.log('ProfileScreen: Initializing auth...');
+          await initializeAuth();
+        }
         
         // Debug: Log the current auth state
         const debugData = await debugAuthState();
@@ -70,9 +73,9 @@ export default function ProfileScreen() {
     };
     
     init();
-  }, [initializeAuth, debugAuthState]);
+  }, []); // Remove dependencies to prevent re-initialization
 
-  // Handle redirection when not authenticated
+  // Log auth state changes for debugging
   useEffect(() => {
     console.log('ProfileScreen: Auth state changed', {
       initialized,
@@ -80,17 +83,10 @@ export default function ProfileScreen() {
       isAuthenticated,
       hasUser: !!user
     });
-    
-    if (initialized && !isAuthLoading) {
-      if (!isAuthenticated || !user) {
-        console.log('ProfileScreen: Not authenticated, redirecting to auth screen');
-        router.replace('/(auth)');
-      }
-    }
-  }, [initialized, isAuthLoading, isAuthenticated, user, router]);
+  }, [initialized, isAuthLoading, isAuthenticated, user]);
   
-  // Show loading state while checking auth
-  if (isAuthLoading || !initialized) {
+  // Show loading state only while initially checking auth (not during profile updates)
+  if (!initialized || (isAuthLoading && !user)) {
     return (
       <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
         <ActivityIndicator size="large" color={colors.primary} />
@@ -106,39 +102,91 @@ export default function ProfileScreen() {
     );
   }
   
-  // If not authenticated, show nothing (will be redirected by the useEffect)
+  // If not authenticated, show login prompt instead of redirecting
   if (!isAuthenticated || !user) {
-    console.log('ProfileScreen: Not authenticated, rendering nothing');
-    return null;
+    console.log('ProfileScreen: Not authenticated, showing login prompt');
+    return <LoginPrompt />;
   }
   
   // Render the actual profile content
   return <ProfileContent />;
 }
 
+function LoginPrompt() {
+  const router = useRouter();
+  
+  return (
+    <View style={styles.container}>
+      <View style={styles.loginPromptContainer}>
+        <Ionicons name="person-outline" size={80} color={colors.lightText} />
+        <Text style={styles.loginPromptTitle}>Sign in to view your profile</Text>
+        <Text style={styles.loginPromptText}>
+          Access your orders, addresses, payment methods, and account settings
+        </Text>
+        
+        <TouchableOpacity
+          style={styles.loginButton}
+          onPress={() => router.push('/(auth)')}
+        >
+          <Text style={styles.loginButtonText}>Sign In</Text>
+        </TouchableOpacity>
+        
+        <TouchableOpacity
+          style={styles.browseButton}
+          onPress={() => router.push('/(tabs)')}
+        >
+          <Text style={styles.browseButtonText}>Continue Browsing</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
 function ProfileContent() {
   const router = useRouter();
   const { user, logout } = useAuthStore();
-  const { recipes } = useRecipeStore();
-  const { addresses, paymentMethods } = useProfileStore();
+
+  const { addresses, paymentMethods, fetchAddresses, isLoading: isAddressLoading } = useProfileStore();
   const { orders, getCartItemsCount } = useCartStore();
-  const [activeTab, setActiveTab] = useState<"recipes" | "saved">("recipes");
+
   const [isLoadingProfile, setIsLoadingProfile] = useState(false);
   const [profileUser, setProfileUser] = useState<ExtendedUser | null>(null);
   const [isFollowingUser, setIsFollowingUser] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
+  // Fetch addresses when user data is available
+  useEffect(() => {
+    if (user && user.token) {
+      console.log('📍 Profile: Fetching addresses for user:', user._id);
+      fetchAddresses(user.token).catch(error => {
+        console.error('📍 Profile: Error fetching addresses:', error);
+      });
+    }
+  }, [user, fetchAddresses]);
+
+  // Log when addresses are loaded
+  useEffect(() => {
+    console.log('📍 Profile: Addresses loaded:', {
+      count: addresses.length,
+      addresses: addresses.map(addr => ({ id: addr.id, name: addr.name, label: addr.label, isDefault: addr.isDefault }))
+    });
+  }, [addresses]);
+
   // Update profile user when user data changes
   useEffect(() => {
     if (user) {
+      console.log('Profile: User data changed:', {
+        firstName: user.firstName,
+        profilePicture: user.profilePicture,
+        hasProfilePicture: !!user.profilePicture
+      });
+      
       const extendedUser: ExtendedUser = {
         ...user,
         name: user.firstName + (user.lastName ? ` ${user.lastName}` : ''),
         avatar: user.profilePicture,
         bio: '',
         location: '',
-
-        recipes: 0,
         reviews: 0,
       };
       setProfileUser(extendedUser);
@@ -163,8 +211,7 @@ function ProfileContent() {
     );
   }
 
-  const userRecipes = recipes.filter((recipe) => recipe.authorId === user._id);
-  const savedRecipes = recipes.filter((recipe) => recipe.isSaved);
+
   
   const defaultAddress = addresses.find(a => a.isDefault);
   const defaultPaymentMethod = paymentMethods.find(p => p.isDefault);
@@ -253,10 +300,16 @@ function ProfileContent() {
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={styles.profileSection}>
           <Image
-            source={{ uri: profileUser?.avatar || 'https://via.placeholder.com/150' }}
+            source={{ 
+              uri: profileUser?.avatar || user?.profilePicture || 'https://ui-avatars.com/api/?name=' + encodeURIComponent(user?.firstName || 'User') + '&background=random&color=fff&size=150'
+            }}
             style={styles.profileImage}
             contentFit="cover"
             transition={200}
+            placeholder={{ blurhash: 'L6PZfSi_.AyE_3t7t7R**0o#DgR4' }}
+            onError={() => {
+              console.log('Profile image failed to load, using fallback');
+            }}
           />
           <Text style={styles.profileName}>
             {user.firstName} {user.lastName}
@@ -268,16 +321,7 @@ function ProfileContent() {
           )}
           {profileUser?.bio && <Text style={styles.profileBio}>{profileUser.bio}</Text>}
 
-          <View style={styles.statsContainer}>
-            <TouchableOpacity
-              style={styles.statItem}
-              onPress={() => router.push("/(tabs)/profile")}
-            >
-              <Text style={styles.statNumber}>{userRecipes.length}</Text>
-              <Text style={styles.statLabel}>Recipes</Text>
-            </TouchableOpacity>
 
-          </View>
 
           <View style={styles.profileActions}>
             <TouchableOpacity
@@ -397,92 +441,7 @@ function ProfileContent() {
           </View>
         )}
 
-        <View style={styles.tabsContainer}>
-          <TouchableOpacity
-            style={[
-              styles.tabButton,
-              activeTab === "recipes" && styles.activeTabButton,
-            ]}
-            onPress={() => setActiveTab("recipes")}
-          >
-            <Grid
-              size={20}
-              color={
-                activeTab === "recipes" ? colors.primary : colors.lightText
-              }
-            />
-            <Text
-              style={[
-                styles.tabText,
-                activeTab === "recipes" && styles.activeTabText,
-              ]}
-            >
-              My Recipes
-            </Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[
-              styles.tabButton,
-              activeTab === "saved" && styles.activeTabButton,
-            ]}
-            onPress={() => setActiveTab("saved")}
-          >
-            <Bookmark
-              size={20}
-              color={activeTab === "saved" ? colors.primary : colors.lightText}
-            />
-            <Text
-              style={[
-                styles.tabText,
-                activeTab === "saved" && styles.activeTabText,
-              ]}
-            >
-              Saved
-            </Text>
-          </TouchableOpacity>
-        </View>
 
-        <View style={styles.recipesContainer}>
-          {activeTab === "recipes" &&
-            (userRecipes.length > 0 ? (
-              userRecipes.map((recipe) => (
-                <RecipeCard key={recipe.id} recipe={recipe} />
-              ))
-            ) : (
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyStateTitle}>No recipes yet</Text>
-                <Text style={styles.emptyStateText}>
-                  Create your first recipe to share with the community
-                </Text>
-                <TouchableOpacity
-                  style={styles.createButton}
-                  onPress={() => router.push("/create-recipe")}
-                >
-                  <Text style={styles.createButtonText}>Create Recipe</Text>
-                </TouchableOpacity>
-              </View>
-            ))}
-
-          {activeTab === "saved" &&
-            (savedRecipes.length > 0 ? (
-              savedRecipes.map((recipe) => (
-                <RecipeCard key={recipe.id} recipe={recipe} />
-              ))
-            ) : (
-              <View style={styles.emptyState}>
-                <Text style={styles.emptyStateTitle}>No saved recipes</Text>
-                <Text style={styles.emptyStateText}>
-                  Save recipes to access them later
-                </Text>
-                <TouchableOpacity
-                  style={styles.createButton}
-                  onPress={() => router.push("/search")}
-                >
-                  <Text style={styles.createButtonText}>Explore Recipes</Text>
-                </TouchableOpacity>
-              </View>
-            ))}
-        </View>
       </ScrollView>
       
       {/* Floating Cart Button - Only visible when there are items in cart */}
@@ -505,6 +464,53 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
+  },
+  loginPromptContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 40,
+    paddingBottom: 100,
+  },
+  loginPromptTitle: {
+    ...typography.heading2,
+    textAlign: 'center',
+    marginTop: 24,
+    marginBottom: 12,
+  },
+  loginPromptText: {
+    ...typography.body,
+    color: colors.lightText,
+    textAlign: 'center',
+    marginBottom: 32,
+    lineHeight: 20,
+  },
+  loginButton: {
+    backgroundColor: colors.primary,
+    paddingVertical: 16,
+    paddingHorizontal: 32,
+    borderRadius: 12,
+    width: '100%',
+    marginBottom: 16,
+  },
+  loginButtonText: {
+    ...typography.button,
+    color: colors.white,
+    textAlign: 'center',
+  },
+  browseButton: {
+    backgroundColor: 'transparent',
+    paddingVertical: 12,
+    paddingHorizontal: 32,
+    borderRadius: 12,
+    width: '100%',
+    borderWidth: 1,
+    borderColor: colors.divider,
+  },
+  browseButtonText: {
+    ...typography.button,
+    color: colors.text,
+    textAlign: 'center',
   },
   header: {
     flexDirection: "row",
@@ -540,29 +546,6 @@ const styles = StyleSheet.create({
     ...typography.body,
     textAlign: "center",
     marginBottom: 24,
-  },
-  statsContainer: {
-    flexDirection: "row",
-    justifyContent: "space-around",
-    width: "100%",
-    marginBottom: 24,
-    paddingHorizontal: 20,
-  },
-  statItem: {
-    alignItems: "center",
-  },
-  statNumber: {
-    ...typography.heading3,
-    marginBottom: 4,
-  },
-  statLabel: {
-    ...typography.caption,
-    color: colors.lightText,
-  },
-  statDivider: {
-    width: 1,
-    height: "80%",
-    backgroundColor: colors.divider,
   },
   profileActions: {
     flexDirection: "row",
@@ -642,6 +625,13 @@ const styles = StyleSheet.create({
   menuItemText: {
     ...typography.body,
     marginLeft: 12,
+    color: colors.text,
+  },
+  menuItemSubtext: {
+    ...typography.caption,
+    marginLeft: 12,
+    color: colors.lightText,
+    marginTop: 2,
   },
   orderItem: {
     flexDirection: "row",
@@ -678,59 +668,7 @@ const styles = StyleSheet.create({
   cancelledStatus: {
     color: colors.error,
   },
-  tabsContainer: {
-    flexDirection: "row",
-    borderBottomWidth: 1,
-    borderBottomColor: colors.divider,
-    backgroundColor: colors.cardBackground,
-  },
-  tabButton: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 16,
-  },
-  activeTabButton: {
-    borderBottomWidth: 2,
-    borderBottomColor: colors.primary,
-  },
-  tabText: {
-    ...typography.body,
-    color: colors.lightText,
-    marginLeft: 8,
-  },
-  activeTabText: {
-    color: colors.primary,
-    fontWeight: "600",
-  },
-  recipesContainer: {
-    padding: 20,
-  },
-  emptyState: {
-    alignItems: "center",
-    padding: 40,
-  },
-  emptyStateTitle: {
-    ...typography.heading3,
-    marginBottom: 8,
-  },
-  emptyStateText: {
-    ...typography.body,
-    color: colors.lightText,
-    textAlign: "center",
-    marginBottom: 24,
-  },
-  createButton: {
-    backgroundColor: colors.primary,
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-  },
-  createButtonText: {
-    ...typography.button,
-    color: colors.white,
-  },
+
   chatbotIcon: {
     width: 24,
     height: 24,
@@ -771,5 +709,84 @@ const styles = StyleSheet.create({
     color: colors.white,
     fontSize: 12,
     fontWeight: 'bold',
+  },
+  // Address styles
+  addressItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: colors.divider,
+  },
+  addressInfo: {
+    flex: 1,
+  },
+  addressHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 4,
+  },
+  addressName: {
+    ...typography.body,
+    fontWeight: "600",
+    marginRight: 8,
+  },
+  defaultBadge: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  defaultBadgeText: {
+    ...typography.caption,
+    color: colors.white,
+    fontSize: 10,
+    fontWeight: "600",
+  },
+  addressLabel: {
+    ...typography.caption,
+    color: colors.lightText,
+    marginBottom: 2,
+  },
+  addressNote: {
+    ...typography.caption,
+    color: colors.lightText,
+    fontStyle: "italic",
+  },
+  seeMoreItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 12,
+    borderTopWidth: 1,
+    borderTopColor: colors.divider,
+  },
+  seeMoreText: {
+    ...typography.bodySmall,
+    color: colors.primary,
+    fontWeight: "500",
+  },
+  loadingContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 20,
+  },
+  loadingText: {
+    ...typography.bodySmall,
+    color: colors.lightText,
+    marginLeft: 8,
+  },
+  emptyStateItem: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingVertical: 16,
+  },
+  emptyStateText: {
+    ...typography.bodySmall,
+    color: colors.lightText,
+    fontStyle: "italic",
   },
 });

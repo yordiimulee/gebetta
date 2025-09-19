@@ -4,6 +4,7 @@ import { AddressType } from "@/types/address";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
+import { authAPI } from "@/lib/api";
 
 export interface ProfileState {
   profiles: User[];
@@ -25,10 +26,12 @@ export interface ProfileState {
   isFollowing: (userId: string) => boolean;
 
   // Address actions
-  addAddress: (address: Omit<AddressType, 'id' | 'createdAt' | 'updatedAt'>) => void;
-  editAddress: (id: string, updates: Partial<Omit<AddressType, 'id' | 'createdAt' | 'updatedAt'>>) => void;
-  removeAddress: (id: string) => void;
-  setDefaultAddress: (id: string) => void;
+  fetchAddresses: (token: string) => Promise<AddressType[]>;
+  addAddress: (address: { name: string; label: string; additionalInfo?: string; isDefault?: boolean; coordinates: { lat: number; lng: number } }, token: string) => Promise<void>;
+  editAddress: (id: string, updates: { name?: string; label?: string; additionalInfo?: string; coordinates?: { lat: number; lng: number }; isDefault?: boolean }, token: string) => Promise<void>;
+  removeAddress: (id: string, token: string) => Promise<void>;
+  setDefaultAddress: (id: string, token: string) => Promise<void>;
+  addCurrentLocation: (address: { label: string; additionalInfo?: string; isDefault?: boolean; coordinates: { lat: number; lng: number } }, token: string) => Promise<void>;
 }
 
 export const useProfileStore = create<ProfileState>()(
@@ -42,42 +45,200 @@ export const useProfileStore = create<ProfileState>()(
       isLoading: false,
       error: null,
       
-      removeAddress: (id: string) => {
-        set(state => ({
-          addresses: state.addresses.filter(address => address.id !== id),
-        }));
-      },
-      
-      setDefaultAddress: (id: string) => {
-        set(state => ({
-          addresses: state.addresses.map(address =>
-            address.id === id ? { ...address, isDefault: true } : { ...address, isDefault: false }
-          ),
-        }));
-      },
-      
-      addAddress: (newAddress) => {
-        const now = new Date().toISOString();
-        const address: AddressType = {
-          ...newAddress,
-          id: Math.random().toString(36).substr(2, 9), // Simple ID generation
-          createdAt: now,
-          updatedAt: now,
-        };
+      fetchAddresses: async (token: string) => {
+        set({ isLoading: true, error: null });
         
-        set(state => ({
-          addresses: [...state.addresses, address],
-        }));
+        try {
+          if (!token) {
+            console.error('❌ No token provided to fetchAddresses');
+            throw new Error('Authentication required');
+          }
+          
+          console.log('📍 Fetching user addresses from API...');
+          console.log('📍 Token length:', token?.length || 0);
+          console.log('📍 API endpoint:', 'MY_ADDRESSES');
+          
+          const response = await authAPI.getMyAddresses(token);
+          
+          console.log('📍 Addresses API response:', {
+            status: response?.status,
+            addressCount: response?.addresses?.length || 0,
+            hasData: !!response?.addresses
+          });
+          
+          if (response?.status === 'success' && response.addresses) {
+            // Transform API addresses to match our AddressType
+            const addresses: AddressType[] = response.addresses.map((addr: any) => {
+              console.log('📍 Processing address:', { 
+                id: addr._id || addr.id,
+                label: addr.label,
+                name: addr.name
+              });
+              
+              const address: AddressType = {
+                id: addr._id || addr.id,
+                name: addr.name || '',
+                label: addr.label || 'Other',
+                additionalInfo: addr.additionalInfo || '',
+                isDefault: addr.isDefault || false,
+                coordinates: addr.coordinates ? {
+                  lat: addr.coordinates.lat,
+                  lng: addr.coordinates.lng
+                } : undefined,
+                createdAt: addr.createdAt || new Date().toISOString(),
+                updatedAt: addr.updatedAt || new Date().toISOString(),
+                
+                // Legacy fields for backward compatibility with existing UI
+                street: addr.name || addr.label || 'Address not specified',
+                city: addr.additionalInfo || 'City not specified',
+                customLabel: addr.label === 'home' || addr.label === 'work' ? undefined : addr.label,
+                note: addr.additionalInfo || '',
+              };
+              
+              return address;
+            });
+            
+            console.log(`✅ Successfully loaded ${addresses.length} addresses`);
+            set({ addresses, isLoading: false });
+            return addresses;
+            
+          } else if (response?.status === 'success' && (!response.addresses || response.addresses.length === 0)) {
+            // Successfully got response but no addresses
+            console.log('ℹ️ No addresses found - user has no saved addresses');
+            set({ addresses: [], isLoading: false });
+            return [];
+            
+          } else {
+            console.error('❌ Invalid response format:', response);
+            throw new Error('Invalid response format from server');
+          }
+          
+        } catch (error: any) {
+          console.error('❌ Error in fetchAddresses:', {
+            message: error.message,
+            response: error.response?.data,
+            status: error.response?.status
+          });
+          
+          // If unauthorized, clear the auth state
+          if (error.response?.status === 401) {
+            console.log('⚠️ Unauthorized - clearing auth state');
+            const { useAuthStore } = await import('./useAuthStore');
+            useAuthStore.getState().logout();
+          }
+          
+          const errorMessage = error?.response?.data?.message || error?.message || "Failed to fetch addresses";
+          console.error('📍 Error fetching addresses:', errorMessage);
+          
+          set({ 
+            isLoading: false, 
+            error: errorMessage
+          });
+          
+          // Don't clear existing addresses on error
+          throw error;
+        }
       },
       
-      editAddress: (id, updates) => {
-        set(state => ({
-          addresses: state.addresses.map(address => 
-            address.id === id 
-              ? { ...address, ...updates, updatedAt: new Date().toISOString() }
-              : address
-          ),
-        }));
+      removeAddress: async (id: string, token: string) => {
+        set({ isLoading: true, error: null });
+        try {
+          console.log('📍 Removing address:', id);
+          await authAPI.deleteAddress(id, token);
+          
+          set(state => ({
+            addresses: state.addresses.filter(address => address.id !== id),
+            isLoading: false,
+          }));
+          console.log('📍 Successfully removed address');
+        } catch (error: any) {
+          console.error('📍 Error removing address:', error);
+          set({
+            isLoading: false,
+            error: error?.response?.data?.message || error?.message || "Failed to remove address"
+          });
+          throw error;
+        }
+      },
+      
+      setDefaultAddress: async (id: string, token: string) => {
+        set({ isLoading: true, error: null });
+        try {
+          console.log('📍 Setting default address:', id);
+          await authAPI.setDefaultAddress(id, token);
+          
+          set(state => ({
+            addresses: state.addresses.map(address =>
+              address.id === id ? { ...address, isDefault: true } : { ...address, isDefault: false }
+            ),
+            isLoading: false,
+          }));
+          console.log('📍 Successfully set default address');
+        } catch (error: any) {
+          console.error('📍 Error setting default address:', error);
+          set({
+            isLoading: false,
+            error: error?.response?.data?.message || error?.message || "Failed to set default address"
+          });
+          throw error;
+        }
+      },
+      
+      addAddress: async (addressData: { name: string; label: string; additionalInfo?: string; isDefault?: boolean; coordinates: { lat: number; lng: number } }, token: string) => {
+        set({ isLoading: true, error: null });
+        try {
+          console.log('📍 Adding new address:', addressData);
+          const response = await authAPI.addAddress(addressData, token);
+          
+          // Refresh addresses from server to get the latest data
+          await get().fetchAddresses(token);
+          console.log('📍 Successfully added address');
+        } catch (error: any) {
+          console.error('📍 Error adding address:', error);
+          set({
+            isLoading: false,
+            error: error?.response?.data?.message || error?.message || "Failed to add address"
+          });
+          throw error;
+        }
+      },
+      
+      editAddress: async (id: string, updates: { name?: string; label?: string; additionalInfo?: string; coordinates?: { lat: number; lng: number }; isDefault?: boolean }, token: string) => {
+        set({ isLoading: true, error: null });
+        try {
+          console.log('📍 Editing address:', id, updates);
+          const response = await authAPI.editAddress(id, updates, token);
+          
+          // Refresh addresses from server to get the latest data
+          await get().fetchAddresses(token);
+          console.log('📍 Successfully edited address');
+        } catch (error: any) {
+          console.error('📍 Error editing address:', error);
+          set({
+            isLoading: false,
+            error: error?.response?.data?.message || error?.message || "Failed to edit address"
+          });
+          throw error;
+        }
+      },
+
+      addCurrentLocation: async (addressData: { label: string; additionalInfo?: string; isDefault?: boolean; coordinates: { lat: number; lng: number } }, token: string) => {
+        set({ isLoading: true, error: null });
+        try {
+          console.log('📍 Adding current location as address:', addressData);
+          const response = await authAPI.addCurrentLocation(addressData, token);
+          
+          // Refresh addresses from server to get the latest data
+          await get().fetchAddresses(token);
+          console.log('📍 Successfully added current location as address');
+        } catch (error: any) {
+          console.error('📍 Error adding current location as address:', error);
+          set({
+            isLoading: false,
+            error: error?.response?.data?.message || error?.message || "Failed to add current location as address"
+          });
+          throw error;
+        }
       },
       
       fetchProfile: async (userId: string) => {

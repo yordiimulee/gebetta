@@ -44,7 +44,7 @@ export default function AddressCard({ address, onEdit, onDelete, onSetDefault }:
       
       <View style={styles.addressContainer}>
         <Text style={styles.address}>{address.street}</Text>
-        <Text style={styles.address}>{`${address.city}, ${address.state} ${address.postalCode}`}</Text>
+        <Text style={styles.address}>{address.city}</Text>
         {address.note && <Text style={styles.note}>{address.note}</Text>}
       </View>
       

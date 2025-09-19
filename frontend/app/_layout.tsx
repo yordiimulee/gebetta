@@ -1,11 +1,9 @@
 import { useAuthStore } from "@/store/useAuthStore";
 import { Stack, useRouter } from "expo-router";
-import * as Font from 'expo-font';
 import { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, View } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
 import colors from "@/constants/colors";
-import { FontAwesome5 } from '@expo/vector-icons';
 
 // Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
@@ -26,15 +24,10 @@ export default function RootLayout() {
     });
   }, [isAuthenticated, isLoading, user, isInitialized]);
 
-  // Load fonts and initialize auth
+  // Initialize auth
   useEffect(() => {
     async function prepare() {
       try {
-        // Load fonts
-        await Font.loadAsync({
-          ...FontAwesome5.font,
-        });
-
         // Initialize auth
         console.log('RootLayout: Initializing auth...');
         await initializeAuth();
@@ -76,36 +69,27 @@ export default function RootLayout() {
 
   return (
     <Stack screenOptions={{ headerShown: false }}>
-      {!isAuthenticated ? (
-        // Auth routes
-        <>
-          <Stack.Screen name="(auth)" options={{ headerShown: false }} />
-          <Stack.Screen name="login" options={{ headerShown: false }} />
-        </>
-      ) : (
-        // Authenticated routes
-        <>
-          <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-          <Stack.Screen name="(restaurant)" options={{ headerShown: false }} />
-          <Stack.Screen name="recipe/[id]" options={{ headerShown: false, title: "Recipe Details" }} />
-          <Stack.Screen name="restaurant/[id]" options={{ headerShown: false, title: "Restaurant" }} />
-          <Stack.Screen name="menu-item/[restaurantId]/[itemId]" options={{ headerShown: false, title: "Menu Item" }} />
-          <Stack.Screen name="checkout" options={{ headerShown: false, title: "Checkout" }} />
-          <Stack.Screen name="order/[id]" options={{ headerShown: false, title: "Order Details" }} />
-          <Stack.Screen name="delivery-tracking/[id]" options={{ headerShown: false, title: "Delivery Tracking" }} />
-          <Stack.Screen name="profile/edit" options={{ headerShown: false, title: "Edit Profile" }} />
-          <Stack.Screen name="profile/addresses/index" options={{ headerShown: false, title: "My Addresses" }} />
-          <Stack.Screen name="profile/addresses/edit/[id]" options={{ headerShown: false, title: "Edit Address" }} />
-          <Stack.Screen name="profile/payment/index" options={{ headerShown: false, title: "Payment Methods" }} />
-          <Stack.Screen name="profile/orders" options={{ headerShown: false, title: "My Orders" }} />
-          <Stack.Screen name="settings" options={{ headerShown: false, title: "Settings" }} />
-          <Stack.Screen name="pin-setup" options={{ headerShown: false, title: "PIN Setup" }} />
-          <Stack.Screen name="change-pin" options={{ headerShown: false, title: "Change PIN" }} />
-          <Stack.Screen name="help-center" options={{ headerShown: false, title: "Help Center" }} />
-          <Stack.Screen name="create-recipe" options={{ headerShown: false, title: "Create Recipe" }} />
-          <Stack.Screen name="edit-recipe/[id]" options={{ headerShown: false, title: "Edit Recipe" }} />
-        </>
-      )}
+      <Stack.Screen name="(auth)" options={{ headerShown: false }} />
+      <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+      <Stack.Screen name="(restaurant)" options={{ headerShown: false }} />
+      <Stack.Screen name="restaurant/[id]" options={{ headerShown: false, title: "Restaurant" }} />
+      <Stack.Screen name="menu-item/[restaurantId]/[itemId]" options={{ headerShown: false, title: "Menu Item" }} />
+      <Stack.Screen name="checkout" options={{ headerShown: false, title: "Checkout" }} />
+      <Stack.Screen name="order/[id]" options={{ headerShown: false, title: "Order Details" }} />
+      <Stack.Screen name="delivery-tracking/[id]" options={{ headerShown: false, title: "Delivery Tracking" }} />
+      <Stack.Screen name="profile/edit" options={{ headerShown: false, title: "Edit Profile" }} />
+      <Stack.Screen name="profile/addresses/index" options={{ headerShown: false, title: "My Addresses" }} />
+      <Stack.Screen name="profile/addresses/add/index" options={{ headerShown: false, title: "Add Address" }} />
+      <Stack.Screen name="profile/addresses/edit/[id]" options={{ headerShown: false, title: "Edit Address" }} />
+      <Stack.Screen name="profile/payment/index" options={{ headerShown: false, title: "Payment Methods" }} />
+              <Stack.Screen name="profile/orders" options={{ headerShown: false, title: "My Orders" }} />
+        <Stack.Screen name="recipe/[id]" options={{ headerShown: false, title: "Recipe Details" }} />
+        <Stack.Screen name="settings" options={{ headerShown: false, title: "Settings" }} />
+        <Stack.Screen name="pin-setup" options={{ headerShown: false, title: "PIN Setup" }} />
+        <Stack.Screen name="change-pin" options={{ headerShown: false, title: "Change PIN" }} />
+        <Stack.Screen name="help-center" options={{ headerShown: false, title: "Help Center" }} />
+        <Stack.Screen name="cart" options={{ headerShown: false, title: "Cart" }} />
+        <Stack.Screen name="modal" options={{ presentation: 'modal', headerShown: false }} />
     </Stack>
   );
 }

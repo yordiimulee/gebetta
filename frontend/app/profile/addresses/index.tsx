@@ -222,36 +222,57 @@ const mockAddresses: AddressType[] = [
 
 export default function AddressesScreen() {
   const router = useRouter();
-  const { addresses, removeAddress, setDefaultAddress, addAddress } = useProfileStore();
-  const [isLoading, setIsLoading] = useState(true);
+  const { addresses, removeAddress, setDefaultAddress, fetchAddresses, isLoading, error } = useProfileStore();
   const [displayAddresses, setDisplayAddresses] = useState<AddressType[]>([]);
+
+  // Debug: Check auth state on mount
+  useEffect(() => {
+    const checkAuth = async () => {
+      const { useAuthStore } = await import('@/store/useAuthStore');
+      const { user, isAuthenticated } = useAuthStore.getState();
+      
+      console.log('📍 Addresses: Auth state on mount:', {
+        isAuthenticated,
+        hasUser: !!user,
+        hasToken: !!user?.token,
+        userId: user?._id
+      });
+    };
+    
+    checkAuth();
+  }, []);
 
   useEffect(() => {
     const loadData = async () => {
-      setIsLoading(true);
-      
       try {
-        // Initialize with mock data if no addresses exist
-        if (addresses.length === 0) {
-          console.log('Initializing with mock addresses');
-          // Clear any existing addresses first to avoid duplicates
-          addresses.forEach(addr => removeAddress(addr.id));
-          // Add all mock addresses
-          mockAddresses.forEach(address => addAddress(address));
-          setDisplayAddresses(mockAddresses);
+        // Get auth token from secure storage
+        const { useAuthStore } = await import('@/store/useAuthStore');
+        const { user } = useAuthStore.getState();
+        
+        console.log('📍 Addresses: Checking auth state...', {
+          hasUser: !!user,
+          hasToken: !!user?.token,
+          userId: user?._id
+        });
+        
+        if (user?.token) {
+          console.log('📍 Loading addresses from API...');
+          await fetchAddresses(user.token);
         } else {
-          console.log('Using existing addresses:', addresses);
-          setDisplayAddresses([...addresses]);
+          console.log('📍 No auth token found, cannot fetch addresses');
         }
       } catch (error) {
         console.error('Error loading addresses:', error);
-      } finally {
-        setIsLoading(false);
       }
     };
     
     loadData();
-  }, [addresses.length, addAddress, removeAddress]);
+  }, [fetchAddresses]);
+
+  // Update display addresses when addresses change
+  useEffect(() => {
+    setDisplayAddresses([...addresses]);
+  }, [addresses]);
 
   // Group addresses by label
   const groupedAddresses = displayAddresses.reduce<GroupedAddresses>((acc, address) => {
@@ -277,7 +298,7 @@ export default function AddressesScreen() {
     router.push(`/profile/addresses/edit/${id}`);
   };
 
-  const handleRemoveAddress = (id: string) => {
+  const handleRemoveAddress = async (id: string) => {
     Alert.alert(
       "Delete Address",
       "Are you sure you want to delete this address?",
@@ -289,13 +310,23 @@ export default function AddressesScreen() {
         { 
           text: "Delete", 
           style: "destructive",
-          onPress: () => removeAddress(id)
+          onPress: async () => {
+            try {
+              const { useAuthStore } = await import('@/store/useAuthStore');
+              const { user } = useAuthStore.getState();
+              if (user?.token) {
+                await removeAddress(id, user.token);
+              }
+            } catch (error) {
+              console.error('Error removing address:', error);
+            }
+          }
         }
       ]
     );
   };
 
-  const handleSetDefaultAddress = (id: string) => {
+  const handleSetDefaultAddress = async (id: string) => {
     Alert.alert(
       "Set as Default",
       "Do you want to set this as your default address?",
@@ -306,7 +337,17 @@ export default function AddressesScreen() {
         },
         { 
           text: "Set as Default",
-          onPress: () => setDefaultAddress(id)
+          onPress: async () => {
+            try {
+              const { useAuthStore } = await import('@/store/useAuthStore');
+              const { user } = useAuthStore.getState();
+              if (user?.token) {
+                await setDefaultAddress(id, user.token);
+              }
+            } catch (error) {
+              console.error('Error setting default address:', error);
+            }
+          }
         }
       ]
     );
@@ -352,6 +393,43 @@ export default function AddressesScreen() {
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={colors.primary} />
           <Text style={styles.loadingText}>Loading addresses...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  // Show error if API failed
+  if (error) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: colors.background }}>
+        <StatusBar barStyle="dark-content" />
+        <View style={styles.header}>
+          <Text style={styles.title}>My Addresses</Text>
+        </View>
+        <View style={[styles.loadingContainer, { justifyContent: 'center' }]}>
+          <Text style={{ color: '#EF4444', textAlign: 'center', marginBottom: 16, fontSize: 16 }}>
+            Failed to load addresses
+          </Text>
+          <Text style={{ color: '#6B7280', textAlign: 'center', marginBottom: 24, fontSize: 14 }}>
+            {error}
+          </Text>
+          <TouchableOpacity
+            style={{
+              backgroundColor: colors.primary,
+              paddingHorizontal: 24,
+              paddingVertical: 12,
+              borderRadius: 8,
+            }}
+            onPress={async () => {
+              const { useAuthStore } = await import('@/store/useAuthStore');
+              const { user } = useAuthStore.getState();
+              if (user?.token) {
+                fetchAddresses(user.token);
+              }
+            }}
+          >
+            <Text style={{ color: 'white', fontWeight: 'bold' }}>Retry</Text>
+          </TouchableOpacity>
         </View>
       </SafeAreaView>
     );

@@ -72,6 +72,14 @@ export default function VerifyScreen() {
       );
 
       const response = await res.json();
+      
+      console.log('✅ Login Response:', {
+        hasUser: !!response.data?.user,
+        userId: response.data?.user?._id,
+        firstName: response.data?.user?.firstName,
+        profilePicture: response.data?.user?.profilePicture,
+        hasProfilePicture: !!response.data?.user?.profilePicture
+      });
 
       if (!res.ok) throw new Error(response?.message || 'OTP verification failed');
 
@@ -82,10 +90,12 @@ export default function VerifyScreen() {
         
         // Store the complete user data
         const userData = {
-          id: response.data.user._id,
+          _id: response.data.user._id,
           firstName: response.data.user.firstName,
+          lastName: response.data.user.lastName || '',
           phone: response.data.user.phone,
-          profilePicture: response.data.user.profilePicture,
+          email: response.data.user.email || '',
+          profilePicture: response.data.user.profilePicture || '',
           role: response.data.user.role,
           isPhoneVerified: response.data.user.isPhoneVerified,
           addresses: response.data.user.addresses || [],
@@ -95,8 +105,10 @@ export default function VerifyScreen() {
         // Store the parsed user data
         await SecureStore.setItemAsync('userInfo', JSON.stringify(userData));
         
-        // Also store in a global state if needed (optional)
-        // You can use a state management solution like Zustand or Context
+        // Update auth store with logged in user data
+        const { useAuthStore } = await import('@/store/useAuthStore');
+        const { setUser } = useAuthStore.getState();
+        await setUser(userData);
       }
 
       setSuccess('✅ OTP verified successfully!');

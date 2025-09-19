@@ -7,7 +7,6 @@ import { useCartStore } from "@/store/cartStore";
 import { useAuthStore } from "@/store/useAuthStore";
 import { OrderServiceType } from "@/types/restaurant";
 import { Image } from "expo-image";
-import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { Clock, MapPin, CreditCard, ShoppingBag } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
@@ -158,7 +157,8 @@ export default function CheckoutScreen() {
         ...(serviceType === "delivery" && {
           vehicleType: vehicleType,
           destinationLocation: {
-            lat: 9.033872, // Fixed coordinates for now
+            lat: 9.033872, // Fixed 
+            // coordinates for now
             lng: 38.750659,
           },
         }),
@@ -342,16 +342,13 @@ export default function CheckoutScreen() {
         </SafeAreaView>
       </Modal>
 
-      {/* Header with gradient background */}
-      <LinearGradient
-        colors={['#1a1a1a', '#2d2d2d', '#1a1a1a']}
-        style={styles.headerGradient}
-      >
+      {/* Header */}
+      <View style={styles.headerGradient}>
         <View style={styles.headerContent}>
           <Text style={styles.headerTitle}>Checkout</Text>
           <Text style={styles.headerSubtitle}>Complete your order</Text>
         </View>
-      </LinearGradient>
+      </View>
 
       <ScrollView
         style={styles.scrollView}
@@ -361,10 +358,7 @@ export default function CheckoutScreen() {
         {/* Restaurant Info Card */}
         {restaurant && (
           <View style={styles.restaurantCard}>
-            <LinearGradient
-              colors={['rgba(0,0,0,0.8)', 'rgba(0,0,0,0.6)']}
-              style={styles.restaurantCardGradient}
-            >
+            <View style={styles.restaurantCardGradient}>
               <Image
                 source={{ uri: restaurant.imageUrl }}
                 style={styles.restaurantImage}
@@ -382,7 +376,7 @@ export default function CheckoutScreen() {
                   <Text style={styles.ratingText}>4.8 • Ethiopian Cuisine</Text>
                 </View>
               </View>
-            </LinearGradient>
+            </View>
           </View>
         )}
 
@@ -402,10 +396,10 @@ export default function CheckoutScreen() {
                   ]}
                   onPress={() => handleServiceTypeChange(type)}
                 >
-                  <LinearGradient
-                    colors={isActive ? ['#000000', '#333333'] : ['#ffffff', '#f8f8f8']}
-                    style={styles.serviceTypeGradient}
-                  >
+                  <View style={[
+                    styles.serviceTypeGradient,
+                    isActive ? styles.serviceTypeActive : styles.serviceTypeInactive
+                  ]}>
                     <IconComponent
                       size={24}
                       color={isActive ? colors.white : colors.primary}
@@ -418,7 +412,7 @@ export default function CheckoutScreen() {
                     >
                       {type === "dine-in" ? "Dine In" : type.charAt(0).toUpperCase() + type.slice(1)}
                     </Text>
-                  </LinearGradient>
+                  </View>
                 </TouchableOpacity>
               );
             })}
@@ -444,14 +438,16 @@ export default function CheckoutScreen() {
                     <Text style={styles.vehicleEmoji}>
                       {type === "Car" ? "🚗" : type === "Bicycle" ? "🚲" : "🏍️"}
                     </Text>
-                    <Text
-                      style={[
-                        styles.vehicleTypeText,
-                        isActive && styles.vehicleTypeTextActive,
-                      ]}
-                    >
-                      {type}
-                    </Text>
+                    <View style={styles.vehicleTextContainer}>
+                      <Text
+                        style={[
+                          styles.vehicleTypeText,
+                          isActive && styles.vehicleTypeTextActive,
+                        ]}
+                      >
+                        {type}
+                      </Text>
+                    </View>
                   </TouchableOpacity>
                 );
               })}
@@ -465,10 +461,10 @@ export default function CheckoutScreen() {
             <Text style={styles.sectionTitle}>Delivery Address</Text>
             {addresses.length === 0 ? (
               <TouchableOpacity style={styles.addAddressButton} onPress={handleAddAddress}>
-                <LinearGradient colors={['#f0f0f0', '#e0e0e0']} style={styles.addAddressGradient}>
+                <View style={styles.addAddressGradient}>
                   <MapPin size={24} color={colors.primary} />
                   <Text style={styles.addAddressText}>Add New Address</Text>
-                </LinearGradient>
+                </View>
               </TouchableOpacity>
             ) : (
               <View style={styles.addressesContainer}>
@@ -513,7 +509,9 @@ export default function CheckoutScreen() {
                     <View style={styles.addressSelectionIndicator}>
                       {selectedAddress === getAddressId(address) ? (
                         <View style={styles.selectedAddressIndicator}>
-                          <Text style={styles.selectedAddressText}>Selected</Text>
+                          <View style={styles.selectedTextContainer}>
+                            <Text style={styles.selectedAddressText}>Selected</Text>
+                          </View>
                         </View>
                       ) : (
                         <View style={styles.radioButton}>
@@ -615,7 +613,7 @@ export default function CheckoutScreen() {
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Add a Tip</Text>
             <View style={styles.tipContainer}>
-              {[0, 10, 20, 30, 50].map((amount) => (
+              {[0, 10, 20, 30, 50, 100].map((amount) => (
                 <TouchableOpacity
                   key={amount}
                   style={[
@@ -651,7 +649,7 @@ export default function CheckoutScreen() {
 
         {/* Order Summary */}
         <View style={styles.orderSummaryCard}>
-          <LinearGradient colors={['#f8f8f8', '#f0f0f0']} style={styles.orderSummaryGradient}>
+          <View style={styles.orderSummaryContainer}>
             <Text style={styles.orderSummaryTitle}>Order Summary</Text>
             
             <View style={styles.summaryRow}>
@@ -684,7 +682,7 @@ export default function CheckoutScreen() {
               <Text style={styles.totalLabel}>Total</Text>
               <Text style={styles.totalValue}>{total.toFixed(2)} Birr</Text>
             </View>
-          </LinearGradient>
+          </View>
         </View>
 
         {/* Security Badge */}
@@ -695,7 +693,7 @@ export default function CheckoutScreen() {
 
       {/* Footer with Place Order Button */}
       <View style={styles.footer}>
-        <LinearGradient colors={['#ffffff', '#f8f8f8']} style={styles.footerGradient}>
+        <View style={styles.footerContainer}>
           <View style={styles.totalContainer}>
             <View>
               <Text style={styles.footerTotalLabel}>Total Amount</Text>
@@ -722,7 +720,7 @@ export default function CheckoutScreen() {
             size="large"
             fullWidth
           />
-        </LinearGradient>
+        </View>
       </View>
     </SafeAreaView>
   );
@@ -737,6 +735,7 @@ const styles = StyleSheet.create({
     paddingTop: 12,
     paddingBottom: 16,
     paddingHorizontal: 20,
+    backgroundColor: colors.primary,
   },
   headerContent: {
     alignItems: 'center',
@@ -788,6 +787,7 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     padding: 20,
+    backgroundColor: colors.primary,
   },
   restaurantImage: {
     width: 80,
@@ -861,6 +861,14 @@ const styles = StyleSheet.create({
     padding: 20,
     minHeight: 100,
   },
+  serviceTypeActive: {
+    backgroundColor: colors.primary,
+  },
+  serviceTypeInactive: {
+    backgroundColor: colors.white,
+    borderWidth: 1,
+    borderColor: colors.divider,
+  },
   serviceTypeText: {
     fontSize: 14,
     fontWeight: "600",
@@ -882,8 +890,10 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 16,
     alignItems: "center",
+    justifyContent: "center",
     borderWidth: 2,
     borderColor: colors.divider,
+    minHeight: 80,
   },
   vehicleTypeButtonActive: {
     borderColor: colors.primary,
@@ -892,15 +902,35 @@ const styles = StyleSheet.create({
   vehicleEmoji: {
     fontSize: 24,
     marginBottom: 8,
+    textAlign: "center",
+    lineHeight: 28,
+  },
+  vehicleTextContainer: {
+    height: 20,
+    justifyContent: "center",
+    alignItems: "center",
+    width: "100%",
   },
   vehicleTypeText: {
     fontSize: 14,
-    fontWeight: "500",
+    fontWeight: "600",
     color: colors.text,
+    textAlign: "center",
+    textAlignVertical: "center",
+    lineHeight: Platform.OS === "ios" ? 20 : 22,
+    height: 20,
+    includeFontPadding: false,
+    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
   },
   vehicleTypeTextActive: {
     color: colors.primary,
     fontWeight: "600",
+    textAlign: "center",
+    textAlignVertical: "center",
+    lineHeight: Platform.OS === "ios" ? 20 : 22,
+    height: 20,
+    includeFontPadding: false,
+    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
   },
   addAddressButton: {
     borderRadius: 16,
@@ -914,6 +944,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: colors.divider,
     borderStyle: "dashed",
+    backgroundColor: colors.inputBackground,
   },
   addAddressText: {
     fontSize: 16,
@@ -948,11 +979,27 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     paddingHorizontal: 12,
     paddingVertical: 6,
+    justifyContent: "center",
+    alignItems: "center",
+    minHeight: 26,
+    minWidth: 60,
+  },
+  selectedTextContainer: {
+    height: 14,
+    justifyContent: "center",
+    alignItems: "center",
+    width: "100%",
   },
   selectedAddressText: {
     fontSize: 12,
     color: colors.white,
     fontWeight: "600",
+    textAlign: "center",
+    textAlignVertical: "center",
+    lineHeight: Platform.OS === "ios" ? 14 : 16,
+    height: 14,
+    includeFontPadding: false,
+    fontFamily: Platform.OS === "ios" ? "System" : "Roboto",
   },
   addressCardContent: {
     flexDirection: "row",
@@ -1150,7 +1197,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     borderWidth: 2,
     borderColor: colors.divider,
-    width: "48%",
+    width: "31%",
     alignItems: "center",
   },
   tipButtonSelected: {
@@ -1194,8 +1241,9 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.15,
     shadowRadius: 6,
   },
-  orderSummaryGradient: {
+  orderSummaryContainer: {
     padding: 24,
+    backgroundColor: colors.white,
   },
   orderSummaryTitle: {
     fontSize: 20,
@@ -1255,9 +1303,10 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 4,
   },
-  footerGradient: {
+  footerContainer: {
     padding: 20,
     paddingBottom: Platform.OS === "ios" ? 40 : 20,
+    backgroundColor: colors.white,
   },
   totalContainer: {
     flexDirection: "row",

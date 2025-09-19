@@ -6,8 +6,7 @@ import typography from "@/constants/typography";
 import { useCartStore } from "@/store/cartStore";
 import * as Location from "expo-location";
 import { useRouter } from "expo-router";
-import { ChevronDown, MapPin, Search, X, ShoppingBag } from "lucide-react-native";
-import { FontAwesome5 } from "@expo/vector-icons";
+import { ChevronDown, MapPin, Search, X, ShoppingBag, Settings } from "lucide-react-native";
 import * as React from "react";
 import { useState, useEffect, useCallback } from "react";
 import { Modal, Switch, Platform, SafeAreaView, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from "react-native";
@@ -646,7 +645,7 @@ export default function RestaurantsScreen() {
           onPress={() => setShowFilterModal(true)}
           accessibilityLabel="Open filter options"
         >
-          <FontAwesome5 name="filter" size={20} color={colors.text} />
+          <Settings size={20} color={colors.text} />
         </TouchableOpacity>
       </View>
 

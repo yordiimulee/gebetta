@@ -8,6 +8,7 @@ import {
   TextStyle,
   TouchableOpacity,
   ViewStyle,
+  View,
 } from "react-native";
 
 interface ButtonProps {
@@ -50,6 +51,23 @@ export default function Button({
     textStyle,
   ];
 
+  if (variant === "primary") {
+    return (
+      <TouchableOpacity
+        style={[styles.button, styles.primary, styles[size], fullWidth && styles.fullWidth, disabled && styles.disabled, style]}
+        onPress={onPress}
+        disabled={disabled || loading}
+        activeOpacity={0.8}
+      >
+        {loading ? (
+          <ActivityIndicator color={colors.white} size="small" />
+        ) : (
+          <Text style={textStyles}>{title}</Text>
+        )}
+      </TouchableOpacity>
+    );
+  }
+
   return (
     <TouchableOpacity
       style={buttonStyles}
@@ -71,9 +89,17 @@ export default function Button({
 
 const styles = StyleSheet.create({
   button: {
-    borderRadius: 8,
+    borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
+    shadowColor: colors.black,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   fullWidth: {
     width: "100%",

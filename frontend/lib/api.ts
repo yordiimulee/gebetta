@@ -1,22 +1,11 @@
-import { API_CONFIG } from '@/constants/api';
+import { API_CONFIG, ENDPOINTS } from '@/constants/api';
 import axios from 'axios';
 import { Platform } from 'react-native';
 
 // Determine the base URL based on platform
 const getBaseUrl = () => {
-  if (Platform.OS === 'web') {
-    // For web, use relative URL
-    return '/api';
-  } else if (__DEV__) {
-    // For development on mobile, use localhost with the correct port
-    // Note: On Android emulator, 10.0.2.2 points to the host machine's localhost
-    return Platform.OS === 'android' 
-      ? 'http://10.0.2.2:8000/api'
-      : 'http://localhost:8000/api';
-  } else {
-    // For production, use the configured base URL
-    return API_CONFIG.BASE_URL;
-  }
+  // Always use the production API
+  return API_CONFIG.BASE_URL;
 };
 
 // Create axios instance
@@ -31,15 +20,11 @@ const api = axios.create({
 // Add request interceptor for logging in development
 api.interceptors.request.use(
   (config) => {
-    if (__DEV__) {
-      console.log(`API Request: ${config.method?.toUpperCase()} ${config.url}`, config.data || '');
-    }
+    console.log(`API Request: ${config.method?.toUpperCase()} ${config.url}`, config.data || '');
     return config;
   },
   (error) => {
-    if (__DEV__) {
-      console.error('API Request Error:', error);
-    }
+    console.error('API Request Error:', error);
     return Promise.reject(error);
   }
 );
@@ -47,15 +32,11 @@ api.interceptors.request.use(
 // Add response interceptor for logging in development
 api.interceptors.response.use(
   (response) => {
-    if (__DEV__) {
-      console.log(`API Response: ${response.status} ${response.config.url}`, response.data);
-    }
+    console.log(`API Response: ${response.status} ${response.config.url}`, response.data);
     return response;
   },
   (error) => {
-    if (__DEV__) {
-      console.error('API Response Error:', error.response?.data || error.message);
-    }
+    console.error('API Response Error:', error.response?.data || error.message);
     return Promise.reject(error);
   }
 );
@@ -139,6 +120,169 @@ export const authAPI = {
           createdAt: new Date().toISOString(),
         }
       };
+    }
+  },
+
+  updateProfile: async (profileData: { firstName: string; lastName: string; profilePicture?: any }, token: string) => {
+    try {
+      const formData = new FormData();
+      
+      // Add text fields
+      formData.append('firstName', profileData.firstName);
+      formData.append('lastName', profileData.lastName);
+      
+      // Add profile picture if provided
+      if (profileData.profilePicture) {
+        formData.append('profilePicture', {
+          uri: profileData.profilePicture,
+          type: 'image/jpeg',
+          name: 'profile.jpg',
+        } as any);
+      }
+
+      const response = await api.patch(ENDPOINTS.UPDATE_PROFILE, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      
+      return response.data;
+    } catch (error) {
+      console.error('Update profile error:', error);
+      throw error;
+    }
+  },
+
+  getMyAddresses: async (token: string) => {
+    try {
+      console.log('📍 API: Making request to get addresses');
+      console.log('📍 API: Endpoint:', ENDPOINTS.MY_ADDRESSES);
+      console.log('📍 API: Token:', token ? 'Token provided' : 'No token');
+      
+      const response = await api.get(ENDPOINTS.MY_ADDRESSES, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      
+      console.log('📍 API: Response received:', {
+        status: response.status,
+        data: response.data
+      });
+      
+      return response.data;
+    } catch (error) {
+      console.error('📍 API: Get addresses error:', error);
+      console.error('📍 API: Error details:', {
+        message: error?.message,
+        response: error?.response?.data,
+        status: error?.response?.status
+      });
+      throw error;
+    }
+  },
+
+  addAddress: async (addressData: {
+    name: string;
+    label: string;
+    additionalInfo?: string;
+    isDefault?: boolean;
+    coordinates: { lat: number; lng: number };
+  }, token: string) => {
+    try {
+      console.log('📍 Adding new address:', addressData);
+      const response = await api.post(ENDPOINTS.ADD_ADDRESS, addressData, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      console.log('📍 Add address response:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Add address error:', error);
+      throw error;
+    }
+  },
+
+  addCurrentLocation: async (addressData: {
+    label: string;
+    additionalInfo?: string;
+    isDefault?: boolean;
+    coordinates: { lat: number; lng: number };
+  }, token: string) => {
+    try {
+      console.log('📍 Adding current location as address:', addressData);
+      const response = await api.post(ENDPOINTS.ADD_CURRENT_LOCATION, addressData, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      console.log('📍 Add current location response:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Add current location error:', error);
+      throw error;
+    }
+  },
+
+  editAddress: async (addressId: string, addressData: {
+    name?: string;
+    label?: string;
+    additionalInfo?: string;
+    coordinates?: { lat: number; lng: number };
+    isDefault?: boolean;
+  }, token: string) => {
+    try {
+      console.log('📍 Editing address:', addressId, addressData);
+
+      // If no duplicate name, proceed with the update
+      const response = await api.patch(ENDPOINTS.EDIT_ADDRESS(addressId), addressData, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+      console.log('📍 Edit address response:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Edit address error:', error);
+      // Re-throw the error to be handled by the calling component
+      throw error;
+    }
+  },
+
+  deleteAddress: async (addressId: string, token: string) => {
+    try {
+      console.log('📍 Deleting address:', addressId);
+      const response = await api.delete(ENDPOINTS.DELETE_ADDRESS(addressId), {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      console.log('📍 Delete address response:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Delete address error:', error);
+      throw error;
+    }
+  },
+
+  setDefaultAddress: async (addressId: string, token: string) => {
+    try {
+      console.log('📍 Setting default address:', addressId);
+      const response = await api.patch(ENDPOINTS.SET_DEFAULT_ADDRESS(addressId), {}, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      console.log('📍 Set default address response:', response.data);
+      return response.data;
+    } catch (error) {
+      console.error('Set default address error:', error);
+      throw error;
     }
   },
 };

@@ -302,7 +302,8 @@ export default function HomeScreen() {
                     _id: `addr_${Date.now()}`,
                     Name: locationString,
                     isDefault: true,
-                    ...getDefaultAddressStructure([location.coords.longitude, location.coords.latitude])
+                    label: 'Home' as const,
+                    additionalInfo: city || 'Unknown City'
                   };
                   
                   console.log('New address to add:', newAddress);
@@ -393,7 +394,7 @@ export default function HomeScreen() {
           <View style={styles.featuredRecipeCard}>
             {featuredRecipes[0] ? (
               <TouchableOpacity 
-                onPress={() => router.push(`/recipe/${featuredRecipes[0].id}`)}
+                onPress={() => router.push(`/recipe/${featuredRecipes[0].id}` as any)}
                 activeOpacity={0.9}
               >
                 <View style={styles.featuredImageContainer}>
@@ -466,7 +467,7 @@ export default function HomeScreen() {
               <TouchableOpacity 
                 key={recipe.id}
                 style={styles.recipeCard}
-                onPress={() => router.push(`/recipe/${recipe.id}`)}
+                onPress={() => router.push(`/recipe/${recipe.id}` as any)}
               >
                 <Image
                   source={{ uri: recipe.imageUrl }}
@@ -705,10 +706,10 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
   },
   recipeCard: {
-    width: 220,
+    width: 180,
     backgroundColor: colors.white,
     borderRadius: 12,
-    marginRight: 25,
+    marginRight: 20,
     marginBottom: 16,
     overflow: "hidden",
     shadowColor: colors.black,
@@ -719,15 +720,15 @@ const styles = StyleSheet.create({
   },
   recipeImage: {
     width: "100%",
-    height: width > 768 ? 160 : 130,
+    height: width > 768 ? 120 : 100,
   },
   recipeInfo: {
-    padding: 6,
+    padding: 8,
   },
   recipeTitle: {
     ...typography.heading4,
     marginBottom: 4,
-    fontSize: 16,
+    fontSize: 14,
     fontWeight: '600',
   },
   recipeMeta: {

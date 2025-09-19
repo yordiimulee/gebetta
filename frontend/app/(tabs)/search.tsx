@@ -14,7 +14,6 @@ import {
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Settings, ChevronDown, ShoppingBag, Search, X } from "lucide-react-native";
-import { FontAwesome5 } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import colors from "@/constants/colors";
 import typography from "@/constants/typography";
@@ -211,8 +210,7 @@ export default function SearchScreen() {
           ]}
           onPress={toggleFilters}
         >
-          <FontAwesome5
-            name="filter"
+          <Settings
             size={20}
             color={
               selectedTag || selectedRegion || selectedDifficulty || maxTime

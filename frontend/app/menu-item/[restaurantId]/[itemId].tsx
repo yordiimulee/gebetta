@@ -1,23 +1,12 @@
 import Button from "@/components/Button";
 import colors from "@/constants/colors";
 import typography from "@/constants/typography";
-import { restaurants } from "@/mocks/restaurants";
 import { useCartStore } from "@/store/cartStore";
 import { OrderServiceType } from "@/types/restaurant";
 import { Image } from "expo-image";
-import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, useRouter } from "expo-router";
-import {
-  ChevronLeft,
-  Flame,
-  Leaf,
-  MapPin,
-  MapPinOff,
-  Minus,
-  Plus,
-  UtensilsCrossed,
-} from "lucide-react-native";
-import React, { useState } from "react";
+import { FontAwesome } from "@expo/vector-icons";
+import React, { useState, useEffect } from "react";
 import {
   Alert,
   Platform,
@@ -27,7 +16,31 @@ import {
   TextInput,
   TouchableOpacity,
   View,
+  ActivityIndicator,
 } from "react-native";
+
+// Food item interface matching the API structure
+interface Food {
+  _id: string;
+  foodName: string;
+  description?: string;
+  price: number;
+  image?: string;
+  isAvailable: boolean;
+  menuId: string;
+  ingredients?: string;
+  instructions?: string;
+  cookingTimeMinutes?: number;
+  rating?: number;
+  isFeatured?: boolean;
+  categoryId?: {
+    _id: string;
+    name: string;
+  };
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
 
 export default function MenuItemDetailScreen() {
   const { restaurantId, itemId } = useLocalSearchParams<{ restaurantId: string; itemId: string }>();
@@ -37,11 +50,195 @@ export default function MenuItemDetailScreen() {
   const [quantity, setQuantity] = useState(1);
   const [specialInstructions, setSpecialInstructions] = useState("");
   const [selectedServiceType, setSelectedServiceType] = useState<OrderServiceType>(serviceType);
-  
-  const restaurant = restaurants.find(r => r.id === restaurantId);
-  const menuItem = restaurant?.menu?.find(item => item.id === itemId);
-  
-  if (!restaurant || !menuItem) {
+  const [menuItem, setMenuItem] = useState<Food | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // Generate fallback description and ingredients based on food name
+  const getFoodDescription = (food: Food) => {
+    if (food.description) {
+      return food.description;
+    }
+    
+    const foodName = food.foodName.toLowerCase();
+    
+    // Ethiopian dishes
+    if (foodName.includes('doro') || foodName.includes('chicken')) {
+      return 'Traditional Ethiopian chicken stew with berbere spice, served with injera bread';
+    }
+    if (foodName.includes('tibs') || foodName.includes('beef')) {
+      return 'Sautéed beef with onions, peppers, and Ethiopian spices';
+    }
+    if (foodName.includes('injera')) {
+      return 'Traditional sourdough flatbread made from teff flour';
+    }
+    if (foodName.includes('kitfo')) {
+      return 'Minced raw beef seasoned with mitmita spice and clarified butter';
+    }
+    if (foodName.includes('shiro')) {
+      return 'Spiced chickpea flour stew with onions and garlic';
+    }
+    if (foodName.includes('gomen')) {
+      return 'Sautéed collard greens with onions and spices';
+    }
+    
+    // Italian dishes
+    if (foodName.includes('pizza')) {
+      return 'Wood-fired pizza with fresh ingredients and authentic Italian flavors';
+    }
+    if (foodName.includes('pasta')) {
+      return 'Fresh pasta with rich sauce and premium ingredients';
+    }
+    if (foodName.includes('lasagna')) {
+      return 'Layered pasta with meat sauce, cheese, and béchamel';
+    }
+    
+    // Fast food
+    if (foodName.includes('burger')) {
+      return 'Juicy beef patty with fresh vegetables and special sauce';
+    }
+    if (foodName.includes('fries')) {
+      return 'Crispy golden fries seasoned to perfection';
+    }
+    if (foodName.includes('chicken')) {
+      return 'Tender chicken prepared with signature spices';
+    }
+    
+    // General fallback
+    return 'Delicious dish prepared with fresh, quality ingredients';
+  };
+
+  const getFoodIngredients = (food: Food) => {
+    if (food.ingredients) {
+      return food.ingredients;
+    }
+    
+    const foodName = food.foodName.toLowerCase();
+    
+    // Ethiopian dishes
+    if (foodName.includes('doro') || foodName.includes('chicken')) {
+      return 'Chicken, Berbere spice, Onions, Garlic, Ginger, Clarified butter';
+    }
+    if (foodName.includes('tibs') || foodName.includes('beef')) {
+      return 'Beef, Onions, Peppers, Ethiopian spices, Clarified butter';
+    }
+    if (foodName.includes('injera')) {
+      return 'Teff flour, Water, Salt';
+    }
+    if (foodName.includes('kitfo')) {
+      return 'Raw beef, Mitmita spice, Clarified butter, Cottage cheese';
+    }
+    if (foodName.includes('shiro')) {
+      return 'Chickpea flour, Onions, Garlic, Berbere spice, Oil';
+    }
+    if (foodName.includes('gomen')) {
+      return 'Collard greens, Onions, Garlic, Ginger, Oil';
+    }
+    
+    // Italian dishes
+    if (foodName.includes('pizza')) {
+      return 'Dough, Tomato sauce, Mozzarella, Fresh basil, Olive oil';
+    }
+    if (foodName.includes('pasta')) {
+      return 'Fresh pasta, Tomato sauce, Parmesan, Basil, Olive oil';
+    }
+    if (foodName.includes('lasagna')) {
+      return 'Pasta sheets, Ground beef, Ricotta, Mozzarella, Tomato sauce';
+    }
+    
+    // Fast food
+    if (foodName.includes('burger')) {
+      return 'Beef patty, Lettuce, Tomato, Onion, Special sauce, Bun';
+    }
+    if (foodName.includes('fries')) {
+      return 'Potatoes, Salt, Oil';
+    }
+    if (foodName.includes('chicken')) {
+      return 'Chicken, Flour, Spices, Oil';
+    }
+    
+    // General fallback
+    return 'Fresh ingredients, Spices, Herbs';
+  };
+
+  // Fetch menu item data
+  useEffect(() => {
+    const fetchMenuItem = async () => {
+      if (!restaurantId || !itemId) return;
+      
+      try {
+        setLoading(true);
+        setError(null);
+        
+        // Try to fetch from API first
+        const response = await fetch(`https://gebetta-backend.onrender.com/api/v1/foods/${itemId}`);
+        
+        if (response.ok) {
+          const data = await response.json();
+          console.log('Menu item API response:', data);
+          
+          if (data.success && data.data) {
+            setMenuItem(data.data);
+          } else {
+            throw new Error('Invalid API response format');
+          }
+        } else if (response.status === 404) {
+          // Item not found in API, create fallback
+          console.log('Menu item not found in API, creating fallback');
+          throw new Error('Item not found');
+        } else {
+          throw new Error(`API request failed: ${response.status}`);
+        }
+      } catch (error) {
+        console.error('Error fetching menu item:', error);
+        setError('Failed to load menu item details');
+        
+        // Create a fallback menu item with realistic data
+        const fallbackItem: Food = {
+          _id: itemId,
+          foodName: 'Delicious Dish',
+          description: 'A tasty dish prepared with fresh, quality ingredients',
+          price: 15.99,
+          isAvailable: true,
+          menuId: '',
+          status: 'Available',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        };
+        setMenuItem(fallbackItem);
+        setError(null); // Clear error since we have fallback data
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchMenuItem();
+  }, [restaurantId, itemId]);
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color={colors.primary} />
+        <Text style={styles.loadingText}>Loading menu item...</Text>
+      </View>
+    );
+  }
+
+  if (error && !menuItem) {
+    return (
+      <View style={styles.errorContainer}>
+        <Text style={styles.errorText}>{error}</Text>
+        <TouchableOpacity
+          style={styles.backButton}
+          onPress={() => router.back()}
+        >
+          <Text style={styles.backButtonText}>Go Back</Text>
+        </TouchableOpacity>
+      </View>
+    );
+  }
+
+  if (!menuItem) {
     return (
       <View style={styles.notFound}>
         <Text style={typography.heading2}>Item not found</Text>
@@ -70,27 +267,32 @@ export default function MenuItemDetailScreen() {
   };
 
   const handleAddToCart = () => {
-    // Update the global service type
-    setServiceType(selectedServiceType);
-    
-    // Add the item to cart
-    addToCart(restaurant.id, menuItem.id, quantity, specialInstructions);
-    
-    Alert.alert(
-      "Added to Cart",
-      `${quantity} ${menuItem.name} added to your cart for ${selectedServiceType}.`,
-      [
-        {
-          text: "Continue Shopping",
-          onPress: () => router.back(),
-          style: "cancel",
-        },
-        {
-          text: "View Cart",
-          onPress: () => router.push("/cart"),
-        },
-      ]
-    );
+    if (restaurantId && menuItem) {
+      // Update the global service type
+      setServiceType(selectedServiceType);
+      
+      // Add the item to cart
+      addToCart(restaurantId, menuItem._id, quantity, selectedServiceType, {
+        name: menuItem.foodName,
+        price: menuItem.price,
+      });
+      
+      Alert.alert(
+        "Added to Cart",
+        `${quantity} ${menuItem.foodName} added to your cart for ${selectedServiceType}.`,
+        [
+          {
+            text: "Continue Shopping",
+            onPress: () => router.back(),
+            style: "cancel",
+          },
+          {
+            text: "View Cart",
+            onPress: () => router.push("/cart"),
+          },
+        ]
+      );
+    }
   };
 
   return (
@@ -98,32 +300,29 @@ export default function MenuItemDetailScreen() {
       <ScrollView showsVerticalScrollIndicator={false}>
         <View style={styles.imageContainer}>
           <Image
-            source={{ uri: menuItem.imageUrl }}
+            source={{ uri: menuItem.image || 'https://via.placeholder.com/400x300?text=No+Image' }}
             style={styles.image}
             contentFit="cover"
           />
-          <LinearGradient
-            colors={["rgba(0,0,0,0.7)", "transparent"]}
-            style={styles.gradient}
-          />
+          <View style={styles.gradient} />
           <TouchableOpacity
             style={styles.backIconButton}
             onPress={() => router.back()}
           >
-            <ChevronLeft size={24} color={colors.white} />
+            <FontAwesome name="chevron-left" size={24} color={colors.white} />
           </TouchableOpacity>
           
           <View style={styles.badgesContainer}>
-            {menuItem.isSpicy && (
+            {menuItem.status === 'Available' && (
               <View style={styles.badge}>
-                <Flame size={16} color={colors.white} />
-                <Text style={styles.badgeText}>Spicy</Text>
+                <FontAwesome name="check" size={16} color={colors.white} />
+                <Text style={styles.badgeText}>Available</Text>
               </View>
             )}
-            {menuItem.isVegetarian && (
+            {menuItem.isFeatured && (
               <View style={[styles.badge, styles.vegBadge]}>
-                <Leaf size={16} color={colors.white} />
-                <Text style={styles.badgeText}>Vegetarian</Text>
+                <FontAwesome name="star" size={16} color={colors.white} />
+                <Text style={styles.badgeText}>Featured</Text>
               </View>
             )}
           </View>
@@ -131,24 +330,16 @@ export default function MenuItemDetailScreen() {
 
         <View style={styles.content}>
           <View style={styles.header}>
-            <Text style={styles.title}>{menuItem.name}</Text>
-            <Text style={styles.price}>{menuItem.price} Birr</Text>
+            <Text style={styles.title}>{menuItem.foodName}</Text>
+            <Text style={styles.price}>${menuItem.price.toFixed(2)}</Text>
           </View>
           
-          <Text style={styles.description}>{menuItem.description}</Text>
+          <Text style={styles.description}>{getFoodDescription(menuItem)}</Text>
           
-          {menuItem.ingredients && menuItem.ingredients.length > 0 && (
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Ingredients</Text>
-              <View style={styles.ingredientsContainer}>
-                {menuItem.ingredients.map((ingredient, index) => (
-                  <View key={ingredient} style={styles.ingredient}>
-                    <Text style={styles.ingredientText}>{ingredient}</Text>
-                  </View>
-                ))}
-              </View>
-            </View>
-          )}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Ingredients</Text>
+            <Text style={styles.ingredientsText}>{getFoodIngredients(menuItem)}</Text>
+          </View>
           
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>How would you like your food?</Text>
@@ -160,7 +351,8 @@ export default function MenuItemDetailScreen() {
                 ]}
                 onPress={() => handleServiceTypeChange('delivery')}
               >
-                <MapPin 
+                <FontAwesome 
+                  name="truck" 
                   size={20} 
                   color={selectedServiceType === 'delivery' ? colors.white : colors.text} 
                 />
@@ -181,7 +373,8 @@ export default function MenuItemDetailScreen() {
                 ]}
                 onPress={() => handleServiceTypeChange('dine-in')}
               >
-                <UtensilsCrossed 
+                <FontAwesome 
+                  name="cutlery" 
                   size={20} 
                   color={selectedServiceType === 'dine-in' ? colors.white : colors.text} 
                 />
@@ -202,7 +395,8 @@ export default function MenuItemDetailScreen() {
                 ]}
                 onPress={() => handleServiceTypeChange('pickup')}
               >
-                <MapPinOff 
+                <FontAwesome 
+                  name="map-marker" 
                   size={20} 
                   color={selectedServiceType === 'pickup' ? colors.white : colors.text} 
                 />
@@ -239,7 +433,7 @@ export default function MenuItemDetailScreen() {
                 onPress={handleDecrement}
                 disabled={quantity <= 1}
               >
-                <Minus size={20} color={quantity <= 1 ? colors.lightText : colors.text} />
+                <FontAwesome name="minus" size={20} color={quantity <= 1 ? colors.lightText : colors.text} />
               </TouchableOpacity>
               
               <Text style={styles.quantityText}>{quantity}</Text>
@@ -248,7 +442,7 @@ export default function MenuItemDetailScreen() {
                 style={styles.quantityButton}
                 onPress={handleIncrement}
               >
-                <Plus size={20} color={colors.text} />
+                <FontAwesome name="plus" size={20} color={colors.text} />
               </TouchableOpacity>
             </View>
           </View>
@@ -472,5 +666,33 @@ const styles = StyleSheet.create({
   addButton: {
     flex: 1,
     marginLeft: 16,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  loadingText: {
+    ...typography.body,
+    color: colors.lightText,
+    marginTop: 8,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 20,
+  },
+  errorText: {
+    ...typography.body,
+    color: colors.error,
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  ingredientsText: {
+    ...typography.body,
+    color: colors.textSecondary,
+    lineHeight: 20,
   },
 });

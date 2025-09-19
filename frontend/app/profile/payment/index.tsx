@@ -3,7 +3,7 @@ import colors from "@/constants/colors";
 import typography from "@/constants/typography";
 import { useProfileStore } from "@/store/profileStore";
 import { useRouter } from "expo-router";
-import { FontAwesome5 } from '@expo/vector-icons';
+import { CreditCard, Plus } from 'lucide-react-native';
 import React, { useEffect, useState } from "react";
 import {
   SafeAreaView,
@@ -103,7 +103,7 @@ export default function PaymentMethodsScreen() {
           </View>
         ) : paymentMethods.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <FontAwesome5 name="credit-card" size={48} color={colors.lightText} />
+            <CreditCard size={48} color={colors.lightText} />
             <Text style={styles.emptyTitle}>No payment methods</Text>
             <Text style={styles.emptyText}>
               Add a payment method to get started
@@ -114,7 +114,7 @@ export default function PaymentMethodsScreen() {
             {paymentMethods.map((method) => (
               <View key={method.id} style={styles.paymentMethodCard}>
                 <View style={styles.paymentMethodHeader}>
-                  <FontAwesome5 name="credit-card" size={20} color={colors.primary} style={styles.paymentMethodIcon} />
+                  <CreditCard size={20} color={colors.primary} style={styles.paymentMethodIcon} />
                   <Text style={styles.paymentMethodType}>{method.type} •••• {method.last4}</Text>
                   {method.isDefault && (
                     <View style={styles.defaultBadge}>
@@ -156,7 +156,7 @@ export default function PaymentMethodsScreen() {
 
         <Button
           title="Add Payment Method"
-          icon={<FontAwesome5 name="plus" size={20} color={colors.white} />}
+          icon={<Plus size={20} color={colors.white} />}
           onPress={handleAddPaymentMethod}
           fullWidth
           style={styles.addButton}

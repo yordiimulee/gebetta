@@ -92,7 +92,7 @@ export default function WelcomeScreen() {
 
   const handleGetStarted = () => {
     //  router.push("/(auth)/login");
-     router.push("/(tabs)");
+      router.push("/(tabs)");
   };
 
 
@@ -290,22 +290,6 @@ export default function WelcomeScreen() {
               )}
             </View>
           </Animated.View>
-
-          {/* Call to Action Section */}
-          <Animated.View 
-            style={[
-              styles.ctaSection,
-              {
-                opacity: fadeAnim,
-                transform: [{ translateY: slideAnim }]
-              }
-            ]}
-          >
-            <Text style={styles.ctaTitle}>Ready to Experience Ethiopia?</Text>
-            <Text style={styles.ctaSubtitle}>
-              Join thousands of food lovers discovering authentic Ethiopian cuisine
-            </Text>
-          </Animated.View>
         </ScrollView>
       </SafeAreaView>
     </View>
@@ -435,8 +419,8 @@ const styles = StyleSheet.create({
     textShadowRadius: 2,
   },
   carouselContainer: {
-    height: 320,
-    marginBottom: 24,
+    height: 280,
+    marginBottom: 4,
   },
   carouselCard: {
     width: Dimensions.get('window').width - 48, // Full width minus padding
@@ -446,8 +430,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'center',
     alignItems: 'center',
-    gap: 8,
-    marginBottom: 24,
+    gap: 6,
+    marginBottom: 4,
   },
   indicator: {
     width: 8,
@@ -461,7 +445,7 @@ const styles = StyleSheet.create({
   },
   navigationButtons: {
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 6,
   },
   nextButton: {
     flexDirection: 'row',

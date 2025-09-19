@@ -1,5 +1,5 @@
 export const API_CONFIG = {
-  BASE_URL: "http://localhost:8000/api",
+  BASE_URL: "https://gebeta-delivery1.onrender.com/api/v1",
   TIMEOUT: 10000,
   HEADERS: {
     "Content-Type": "application/json",
@@ -13,6 +13,17 @@ export const ENDPOINTS = {
   LOGIN: "/auth/login",
   VERIFY_OTP: "/auth/verify-otp",
   RESEND_OTP: "/auth/resend-otp",
+  
+  // Profile
+  UPDATE_PROFILE: "/users/profile",
+  
+  // Addresses
+  MY_ADDRESSES: "/users/myAddresses",
+  ADD_ADDRESS: "/users/addAddress",
+  ADD_CURRENT_LOCATION: "/users/address/current-location",
+  EDIT_ADDRESS: (id: string) => `/users/address/${id}`,
+  DELETE_ADDRESS: (id: string) => `/users/address/${id}`,
+  SET_DEFAULT_ADDRESS: (id: string) => `/users/address/${id}/setDefault`,
   
   // Restaurants
   RESTAURANTS: "/restaurants",

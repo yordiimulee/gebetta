@@ -16,6 +16,8 @@ import {
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
+import * as SecureStore from 'expo-secure-store';
+import { useAuthStore } from '@/store/useAuthStore';
 
 type Country = {
   name: string;
@@ -34,23 +36,40 @@ const countries: Country[] = [
 
 export default function LoginScreen() {
   const [phoneNumber, setPhoneNumber] = useState('');
+  const [password, setPassword] = useState('');
   const [phoneError, setPhoneError] = useState('');
+  const [passwordError, setPasswordError] = useState('');
   const [loading, setLoading] = useState(false);
   const [showCountryPicker, setShowCountryPicker] = useState(false);
   const [selectedCountry, setSelectedCountry] = useState<Country>(countries[0]);
   const [responseMessage, setResponseMessage] = useState('');
   const [showResponse, setShowResponse] = useState(false);
   const [responseType, setResponseType] = useState<'success' | 'error'>('success');
+  const [showPassword, setShowPassword] = useState(false);
 
   const router = useRouter();
+  const { login } = useAuthStore();
 
   const validateForm = () => {
+    let isValid = true;
+
+    // Validate phone number
     if (!phoneNumber || phoneNumber.length < 9) {
       setPhoneError('Please enter a valid phone number');
-      return false;
+      isValid = false;
+    } else {
+      setPhoneError('');
     }
-    setPhoneError('');
-    return true;
+
+    // Validate password
+    if (!password || password.length < 6) {
+      setPasswordError('Password must be at least 6 characters');
+      isValid = false;
+    } else {
+      setPasswordError('');
+    }
+
+    return isValid;
   };
 
   const handleLogin = async () => {
@@ -61,36 +80,73 @@ export default function LoginScreen() {
     const cleanedNumber = phoneNumber.replace(/\D/g, '').replace(/^0+/, '');
     const formattedPhone = `${selectedCountry.dialCode}${cleanedNumber}`.replace('+', '');
 
+    console.log('🔐 Attempting login with:', {
+      phone: formattedPhone,
+      passwordLength: password.length
+    });
+
     try {
-      const response = await fetch('https://gebeta-delivery1.onrender.com/api/v1/users/signup', {
+      const response = await fetch('https://gebeta-delivery1.onrender.com/api/v1/users/login', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ phone: formattedPhone }),
+        body: JSON.stringify({ 
+          phone: formattedPhone,
+          password: password 
+        }),
       });
+
+      console.log('📡 Response status:', response.status);
+      console.log('📡 Response headers:', response.headers);
 
       const data = await response.json();
       console.log('✅ Server response:', data);
+      console.log('✅ Response structure:', {
+        hasUser: !!data.data?.user,
+        hasToken: !!data.token,
+        userKeys: data.data?.user ? Object.keys(data.data.user) : [],
+        tokenType: typeof data.token
+      });
 
       if (!response.ok) {
-        throw new Error(data?.message || 'Failed to send OTP');
+        throw new Error(data?.message || 'Login failed');
       }
 
-      setResponseMessage('✅ OTP sent successfully!');
+      // Store user data in auth store
+      if (data.token && data.data?.user) {
+        console.log('✅ Storing user data:', { user: data.data.user, token: data.token });
+        const userData = {
+          ...data.data.user,
+          token: data.token  // Ensure token is included in user data
+        };
+        
+        // Store both the token and user data
+        await login({ 
+          user: userData, 
+          token: data.token 
+        });
+        
+        // Also store in SecureStore for persistence
+        await SecureStore.setItemAsync('userToken', data.token);
+        await SecureStore.setItemAsync('userInfo', JSON.stringify(userData));
+        
+        console.log('✅ User data stored successfully');
+      } else {
+        console.error('❌ Missing user data or token in response:', data);
+        throw new Error('Invalid response format from server');
+      }
+
+      setResponseMessage('✅ Login successful!');
       setResponseType('success');
       setShowResponse(true);
 
       setTimeout(() => {
         setShowResponse(false);
-        router.push({
-          pathname: '/(auth)/verify',
-          params: { phone: formattedPhone },
-        });
+        router.push('/(tabs)');
       }, 2000);
     } catch (error: any) {
-      console.error('❌ Error sending OTP:', error.message);
-      setPhoneError(error.message || 'Failed to send OTP');
+      console.error('❌ Error logging in:', error.message);
       setResponseMessage(`❌ ${error.message}`);
       setResponseType('error');
       setShowResponse(true);
@@ -151,12 +207,12 @@ export default function LoginScreen() {
                   resizeMode="contain"
                 />
                 <Text style={styles.welcomeText}>Welcome to Gebeta</Text>
-                <Text style={styles.subtitleText}>Delicious food delivered to your door</Text>
+                <Text style={styles.subtitleText}>Sign in to your account</Text>
               </View>
 
               <View style={styles.card}>
-                <Text style={styles.cardTitle}>Enter Your Phone Number</Text>
-                <Text style={styles.cardSubtitle}>We'll send you a verification code</Text>
+                <Text style={styles.cardTitle}>Sign In</Text>
+                <Text style={styles.cardSubtitle}>Enter your phone number and password</Text>
 
                 <View style={styles.phoneInputContainer}>
                   <TouchableOpacity
@@ -171,7 +227,7 @@ export default function LoginScreen() {
                   <TextInput
                     style={[styles.input, phoneError ? styles.inputError : null]}
                     placeholder="Phone number"
-                    placeholderTextColor="transparent"
+                    placeholderTextColor="#999"
                     value={phoneNumber}
                     onChangeText={setPhoneNumber}
                     keyboardType="phone-pad"
@@ -180,6 +236,30 @@ export default function LoginScreen() {
                 </View>
 
                 {phoneError ? <Text style={styles.errorText}>{phoneError}</Text> : null}
+
+                <View style={styles.passwordInputContainer}>
+                  <TextInput
+                    style={[styles.passwordInput, passwordError ? styles.inputError : null]}
+                    placeholder="Password"
+                    placeholderTextColor="#999"
+                    value={password}
+                    onChangeText={setPassword}
+                    secureTextEntry={!showPassword}
+                    autoCapitalize="none"
+                  />
+                  <TouchableOpacity
+                    style={styles.eyeIcon}
+                    onPress={() => setShowPassword(!showPassword)}
+                  >
+                    <Ionicons 
+                      name={showPassword ? "eye-off" : "eye"} 
+                      size={20} 
+                      color="#666" 
+                    />
+                  </TouchableOpacity>
+                </View>
+
+                {passwordError ? <Text style={styles.errorText}>{passwordError}</Text> : null}
 
                 {showCountryPicker && (
                   <View style={styles.countryList}>{countries.map(renderCountryItem)}</View>
@@ -194,12 +274,21 @@ export default function LoginScreen() {
                   {loading ? (
                     <ActivityIndicator color="#fff" />
                   ) : (
-                    <Text style={styles.buttonText}>Continue</Text>
+                    <Text style={styles.buttonText}>Sign In</Text>
                   )}
                 </TouchableOpacity>
 
+                <View style={styles.linksContainer}>
+                  <TouchableOpacity onPress={() => router.push('/(auth)/verify')}>
+                    <Text style={styles.linkText}>Forgot Password?</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={() => router.push('/(auth)/restaurant-owner-signup')}>
+                    <Text style={styles.linkText}>Create Account</Text>
+                  </TouchableOpacity>
+                </View>
+
                 <Text style={styles.termsText}>
-                  By continuing, you agree to our{' '}
+                  By signing in, you agree to our{' '}
                   <Text style={styles.linkText}>Terms of Service</Text> and{' '}
                   <Text style={styles.linkText}>Privacy Policy</Text>
                 </Text>
@@ -323,6 +412,26 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: '#333',
   },
+  passwordInputContainer: {
+    position: 'relative',
+    marginBottom: 8,
+  },
+  passwordInput: {
+    backgroundColor: 'rgba(255, 255, 255, 0.7)',
+    padding: 16,
+    paddingRight: 50,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.5)',
+    fontSize: 16,
+    color: '#333',
+  },
+  eyeIcon: {
+    position: 'absolute',
+    right: 16,
+    top: 16,
+    padding: 4,
+  },
   inputError: {
     borderColor: '#ff4444',
   },
@@ -354,6 +463,11 @@ const styles = StyleSheet.create({
     marginTop: 4,
     marginLeft: 4,
   },
+  linksContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
   termsText: {
     fontSize: 12,
     color: '#999',
@@ -364,6 +478,7 @@ const styles = StyleSheet.create({
   linkText: {
     color: '#FF6B6B',
     textDecorationLine: 'underline',
+    fontSize: 14,
   },
   countryList: {
     maxHeight: 200,

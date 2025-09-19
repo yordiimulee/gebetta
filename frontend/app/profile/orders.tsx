@@ -284,6 +284,7 @@ export default function OrdersScreen() {
                 // Defensive: fallback for missing fields
                 // Adapted for new order format
                 const orderId = order._id || order.id || "N/A";
+                // const orderVerificationCode = order.verification_code || "N/A";
                 // There is no "foodName" at the order level; show first foodName or fallback
                 const orderName =
                   order.orderItems && order.orderItems.length > 0
@@ -379,7 +380,8 @@ export default function OrdersScreen() {
                               </View>
                               <View style={styles.orderMainInfo}>
                                 <Text style={styles.orderTitle}>{orderName}</Text>
-                                <Text style={styles.orderSubtitle}>Order #{orderVId.slice(-6)}</Text>
+                                <Text style={styles.orderSubtitle}>Order ID: {orderVId}</Text>
+                                <Text style={styles.orderSubtitle}>Verification Code: #{orderVerificationCode}</Text>
                               </View>
                             </View>
                             <View style={styles.statusContainer}>

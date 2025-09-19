@@ -8,8 +8,6 @@ import colors from '@/constants/colors';
 interface AddressFormData {
   street: string;
   city: string;
-  state: string;
-  postalCode: string;
   label: 'home' | 'work' | 'other';
   customLabel: string;
   isDefault: boolean;
@@ -23,8 +21,6 @@ export default function EditAddressScreen() {
   const [formData, setFormData] = useState<AddressFormData>({
     street: '',
     city: '',
-    state: '',
-    postalCode: '',
     label: 'home',
     customLabel: '',
     isDefault: false,
@@ -39,8 +35,6 @@ export default function EditAddressScreen() {
         setFormData({
           street: existingAddress.street,
           city: existingAddress.city,
-          state: existingAddress.state,
-          postalCode: existingAddress.postalCode,
           label: existingAddress.label,
           customLabel: existingAddress.customLabel || '',
           isDefault: existingAddress.isDefault,
@@ -122,26 +116,7 @@ export default function EditAddressScreen() {
         />
       </View>
 
-      <View style={styles.inputContainer}>
-        <Text style={styles.label}>State/Region</Text>
-        <TextInput
-          value={formData.state}
-          onChangeText={(text: string) => handleChange('state', text)}
-          style={styles.input}
-          placeholder="Enter state/region"
-        />
-      </View>
 
-      <View style={styles.inputContainer}>
-        <Text style={styles.label}>Postal Code</Text>
-        <TextInput
-          value={formData.postalCode}
-          onChangeText={(text: string) => handleChange('postalCode', text)}
-          style={styles.input}
-          placeholder="Enter postal code"
-          keyboardType="numeric"
-        />
-      </View>
 
       <TouchableOpacity
         onPress={handleSubmit}

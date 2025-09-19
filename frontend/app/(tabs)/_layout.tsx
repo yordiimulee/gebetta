@@ -1,6 +1,6 @@
 import colors from "@/constants/colors";
 import { Tabs } from "expo-router";
-import { FontAwesome5 } from '@expo/vector-icons';
+import { Home, Search, UtensilsCrossed, UserCircle } from 'lucide-react-native';
 import React from "react";
 import { Platform, StyleSheet } from "react-native";
 import { StatusBar } from "expo-status-bar";
@@ -43,35 +43,29 @@ export default function TabsLayout() {
           name="index"
           options={{
             title: "Home",
-            tabBarIcon: ({ color }) => <FontAwesome5 name="home" size={24} color={color} />,
+            tabBarIcon: ({ color }) => <Home size={24} color={color} />,
           }}
         />
         <Tabs.Screen
           name="search"
           options={{
             title: "Search",
-            tabBarIcon: ({ color }) => <FontAwesome5 name="search" size={24} color={color} />,
+            tabBarIcon: ({ color }) => <Search size={24} color={color} />,
           }}
         />
         <Tabs.Screen
           name="restaurants"
           options={{
             title: "Restaurants",
-            tabBarIcon: ({ color }) => <FontAwesome5 name="utensils" size={24} color={color} />,
+            tabBarIcon: ({ color }) => <UtensilsCrossed size={24} color={color} />,
           }}
         />
-        <Tabs.Screen
-          name="create"
-          options={{
-            title: "Create",
-            tabBarIcon: ({ color }) => <FontAwesome5 name="plus-circle" size={24} color={color} />,
-          }}
-        />
+
         <Tabs.Screen
           name="profile"
           options={{
             title: "Profile",
-            tabBarIcon: ({ color }) => <FontAwesome5 name="user-circle" size={24} color={color} />,
+            tabBarIcon: ({ color }) => <UserCircle size={24} color={color} />,
           }}
         />
       </Tabs>

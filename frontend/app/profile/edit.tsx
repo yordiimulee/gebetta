@@ -2,7 +2,7 @@ import Button from "@/components/Button";
 import Input from "@/components/Input";
 import colors from "@/constants/colors";
 import typography from "@/constants/typography";
-import { useAuthStore } from "@/store/authStore";
+import { useAuthStore } from "@/store/useAuthStore";
 import { Image } from "expo-image";
 import * as ImagePicker from "expo-image-picker";
 import { useRouter } from "expo-router";
@@ -25,7 +25,7 @@ export default function EditProfileScreen() {
   
   const [firstName, setFirstName] = useState((user as any)?.firstName || "");
   const [lastName, setLastName] = useState((user as any)?.lastName || "");
-  const [avatar, setAvatar] = useState(user?.avatar || "");
+  const [avatar, setAvatar] = useState(user?.profilePicture || "");
   
   const [isSubmitting, setIsSubmitting] = useState(false);
   
@@ -42,7 +42,7 @@ export default function EditProfileScreen() {
     }
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!firstName.trim()) {
       Alert.alert("Error", "First name is required");
       return;
@@ -56,24 +56,33 @@ export default function EditProfileScreen() {
     setIsSubmitting(true);
     
     try {
-      updateProfile({
+      await updateProfile({
         firstName,
         lastName,
         avatar,
       } as any);
       
-      Alert.alert(
-        "Success",
-        "Profile updated successfully",
-        [
-          {
-            text: "OK",
-            onPress: () => router.back(),
-          },
-        ]
-      );
-    } catch (error) {
-      Alert.alert("Error", "Failed to update profile");
+      // Show success message and navigate back immediately
+      Alert.alert("Success", "Profile updated successfully");
+      
+      // Navigate back immediately without waiting for alert
+      setTimeout(() => {
+        try {
+          if (router.canGoBack()) {
+            router.back();
+          } else {
+            router.replace('/(tabs)/profile');
+          }
+        } catch (error) {
+          console.log('Navigation error, using profile tab fallback');
+          router.replace('/(tabs)/profile');
+        }
+      }, 100); // Small delay to ensure alert is shown
+      
+    } catch (error: any) {
+      console.error("Profile update error:", error);
+      const errorMessage = error?.response?.data?.message || error?.message || "Failed to update profile";
+      Alert.alert("Error", errorMessage);
     } finally {
       setIsSubmitting(false);
     }
@@ -87,7 +96,19 @@ export default function EditProfileScreen() {
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
-          onPress={() => router.back()}
+          onPress={() => {
+            // Try to go back, with fallback to profile tab
+            try {
+              if (router.canGoBack()) {
+                router.back();
+              } else {
+                router.replace('/(tabs)/profile');
+              }
+            } catch (error) {
+              console.log('Navigation error, using profile tab fallback');
+              router.replace('/(tabs)/profile');
+            }
+          }}
         >
           <ChevronLeft size={24} color={colors.text} />
         </TouchableOpacity>
